@@ -41,7 +41,10 @@ Viewer::Viewer() :
             _mesh = MeshPtr(new Mesh());
             if (_mesh->loadMesh(filename))
             {
-                bindMesh(_glShader, _mesh);
+                if (_viewerShader)
+                {
+                    _viewerShader->bindMesh(_mesh);
+                }
                 recenterCamera();
             }
             else
@@ -63,8 +66,11 @@ Viewer::Viewer() :
             _materialFilename = filename;
             try
             {
-                _glShader = generateShader(_materialFilename, _searchPath, _stdLib);
-                bindMesh(_glShader, _mesh);
+                _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
+                if (_viewerShader)
+                {
+                    _viewerShader->bindMesh(_mesh);
+                }
             }
             catch (std::exception& e)
             {
@@ -104,8 +110,11 @@ Viewer::Viewer() :
 
     try
     {
-        _glShader = generateShader(_materialFilename, _searchPath, _stdLib);
-        bindMesh(_glShader, _mesh);
+        _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
+        if (_viewerShader)
+        {
+            _viewerShader->bindMesh(_mesh);
+        }
     }
     catch (std::exception& e)
     {
@@ -125,8 +134,11 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                _glShader = generateShader(_materialFilename, _searchPath, _stdLib);
-                bindMesh(_glShader, _mesh);
+                _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
+                if (_viewerShader)
+                {
+                    _viewerShader->bindMesh(_mesh);
+                }
             }
             catch (std::exception& e)
             {
@@ -141,7 +153,8 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                StringPair source = generateSource(_materialFilename, _searchPath, _stdLib);
+                mx::HwShaderPtr hwShader = nullptr;
+                StringPair source = generateSource(_materialFilename, _searchPath, _stdLib, hwShader);
                 std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
                 mx::StringVec splitName = mx::splitString(baseName, ".");
                 writeTextFile(source.first, _startPath / (baseName + "_vs.glsl"));
@@ -159,7 +172,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (!_mesh || !_glShader)
+    if (!_mesh || !_viewerShader)
     {
         return;
     }
@@ -167,16 +180,27 @@ void Viewer::drawContents()
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
-    _glShader->bind();
+    GLShaderPtr shader = _viewerShader->ngShader();
+    shader->bind();
 
-    bindUniforms(_glShader, _imageHandler, _startPath, _envSamples, world, view, proj);
+    _viewerShader->bindUniforms(_imageHandler, _startPath, _envSamples, world, view, proj);
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glEnable(GL_FRAMEBUFFER_SRGB);
+    if (_viewerShader->isTransparent())
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    else
+    {
+        glDisable(GL_BLEND);
+    }
 
-    _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) _mesh->getFaceCount());
+    shader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) _mesh->getFaceCount());
 
+    glDisable(GL_BLEND);
     glDisable(GL_FRAMEBUFFER_SRGB);
 }
 

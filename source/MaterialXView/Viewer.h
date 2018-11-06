@@ -3,6 +3,7 @@
 
 #include <MaterialXView/Material.h>
 #include <MaterialXView/Mesh.h>
+#include <MaterialXGenShader/HwShader.h>
 
 #include <nanogui/glutil.h>
 #include <nanogui/screen.h>
@@ -48,7 +49,7 @@ class Viewer : public ng::Screen
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;
-    ShaderPtr _glShader;
+    ViewerShaderPtr _viewerShader;
 
     CameraParameters _cameraParams;
     bool _translationActive;
