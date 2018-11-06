@@ -49,7 +49,7 @@ class Viewer : public ng::Screen
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;
-    ViewerShaderPtr _viewerShader;
+    MaterialPtr _material;
 
     CameraParameters _cameraParams;
     bool _translationActive;

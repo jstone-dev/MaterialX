@@ -19,32 +19,60 @@ namespace ng = nanogui;
 using StringPair = std::pair<std::string, std::string>;
 using GLShaderPtr = std::shared_ptr<ng::GLShader>;
 
-using ViewerShaderPtr = std::unique_ptr<class ViewerShader>;
+using MaterialPtr = std::unique_ptr<class Material>;
 
-class ViewerShader
+// TODO: Move image caching into the ImageHandler class.
+class ImageDesc
+{
+public:
+    unsigned int width = 0; // TODO: These would be better as size_t.
+    unsigned int height = 0;
+    unsigned int channelCount = 0;
+    unsigned int mipCount = 0;
+    unsigned int textureId = 0;
+};
+
+class Material
 {
   public:
-    static ViewerShaderPtr generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib);
+    static MaterialPtr generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib);
 
+    /// Get Nano-gui shader
     GLShaderPtr ngShader() const { return _ngShader; }
+    
+    /// Get MaterialX shader
     mx::HwShaderPtr mxShader() const { return _mxShader; }
 
+    /// Bind mesh inputs to shader
     void bindMesh(MeshPtr& mesh);
+
+    /// Bind uniforms to shader
     void bindUniforms(mx::ImageHandlerPtr imageHandler, mx::FilePath imagePath, int envSamples,
                       mx::Matrix44& world, mx::Matrix44& view, mx::Matrix44& proj);
 
-    bool isTransparent() const { return _isTransparent; }
+    /// Bind texture to shader
+    bool bindTexture(const std::string& fileName, const std::string& uniformName,
+                     mx::ImageHandlerPtr imageHandler, ImageDesc& desc);
+
+    /// Bind required file textures to shader
+    void Material::bindTextures(mx::ImageHandlerPtr imageHandler);
+
+    /// Return if the shader is has transparency
+    bool hasTransparency() const { return _hasTransparency; }
 
   protected:
-    ViewerShader(GLShaderPtr ngshader, mx::HwShaderPtr mxshader)
+    Material(GLShaderPtr ngshader, mx::HwShaderPtr mxshader)
     {
         _ngShader = ngshader;
         _mxShader = mxshader;
     }
 
+    // Acquire a texture. Return information in image description
+    bool acquireTexture(const std::string& fileName, mx::ImageHandlerPtr imageHandler, ImageDesc &desc);
+
     GLShaderPtr _ngShader;
     mx::HwShaderPtr _mxShader;
-    bool _isTransparent;
+    bool _hasTransparency;
 };
 
 void loadLibraries(const mx::StringVec& libraryNames, const mx::FilePath& searchPath, mx::DocumentPtr doc);

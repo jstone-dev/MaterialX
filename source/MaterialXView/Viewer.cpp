@@ -41,9 +41,9 @@ Viewer::Viewer() :
             _mesh = MeshPtr(new Mesh());
             if (_mesh->loadMesh(filename))
             {
-                if (_viewerShader)
+                if (_material)
                 {
-                    _viewerShader->bindMesh(_mesh);
+                    _material->bindMesh(_mesh);
                 }
                 recenterCamera();
             }
@@ -66,10 +66,10 @@ Viewer::Viewer() :
             _materialFilename = filename;
             try
             {
-                _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
-                if (_viewerShader)
+                _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+                if (_material)
                 {
-                    _viewerShader->bindMesh(_mesh);
+                    _material->bindMesh(_mesh);
                 }
             }
             catch (std::exception& e)
@@ -110,10 +110,10 @@ Viewer::Viewer() :
 
     try
     {
-        _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
-        if (_viewerShader)
+        _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+        if (_material)
         {
-            _viewerShader->bindMesh(_mesh);
+            _material->bindMesh(_mesh);
         }
     }
     catch (std::exception& e)
@@ -134,10 +134,10 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                _viewerShader = ViewerShader::generateShader(_materialFilename, _searchPath, _stdLib);
-                if (_viewerShader)
+                _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+                if (_material)
                 {
-                    _viewerShader->bindMesh(_mesh);
+                    _material->bindMesh(_mesh);
                 }
             }
             catch (std::exception& e)
@@ -172,7 +172,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (!_mesh || !_viewerShader)
+    if (!_mesh || !_material)
     {
         return;
     }
@@ -180,15 +180,15 @@ void Viewer::drawContents()
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
-    GLShaderPtr shader = _viewerShader->ngShader();
+    GLShaderPtr shader = _material->ngShader();
     shader->bind();
 
-    _viewerShader->bindUniforms(_imageHandler, _startPath, _envSamples, world, view, proj);
+    _material->bindUniforms(_imageHandler, _startPath, _envSamples, world, view, proj);
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glEnable(GL_FRAMEBUFFER_SRGB);
-    if (_viewerShader->isTransparent())
+    if (_material->hasTransparency())
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
