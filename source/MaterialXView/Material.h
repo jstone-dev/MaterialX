@@ -68,7 +68,7 @@ class Material
     }
 
     // Acquire a texture. Return information in image description
-    bool acquireTexture(const std::string& fileName, mx::ImageHandlerPtr imageHandler, ImageDesc &desc);
+    bool acquireTexture(const std::string& filename, mx::ImageHandlerPtr imageHandler, ImageDesc& desc);
 
     GLShaderPtr _ngShader;
     mx::HwShaderPtr _mxShader;

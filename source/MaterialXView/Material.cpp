@@ -82,7 +82,7 @@ StringPair generateSource(const mx::FilePath& filePath, const mx::FilePath& sear
     return StringPair(vertexShader, pixelShader);
 }
 
-MaterialPtr Material::generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib )
+MaterialPtr Material::generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib)
 {
     mx::HwShaderPtr hwShader = nullptr;
     StringPair source = generateSource(filePath, searchPath, stdLib, hwShader);
@@ -106,7 +106,7 @@ void Material::bindMesh(MeshPtr& mesh)
         return;
     }
 
-    // This needs to be reversed to examine the MaterialX shader for required attributes
+    // TODO: This needs to be reversed to examine the MaterialX shader for required attributes
     _ngShader->bind();
     if (_ngShader->attrib("i_position") != -1)
     {
@@ -132,19 +132,19 @@ void Material::bindMesh(MeshPtr& mesh)
     _ngShader->uploadIndices(indices);
 }
 
-bool Material::acquireTexture(const std::string& fileName, mx::ImageHandlerPtr imageHandler, ImageDesc &desc)
+bool Material::acquireTexture(const std::string& filename, mx::ImageHandlerPtr imageHandler, ImageDesc& desc)
 {
-    if (imageCache.count(fileName))
+    if (imageCache.count(filename))
     {
-        desc = imageCache[fileName];
+        desc = imageCache[filename];
     }
     else
     {
         // Load the requested texture into memory.
         float* data = nullptr;
-        if (!imageHandler->loadImage(fileName, desc.width, desc.height, desc.channelCount, &data))
+        if (!imageHandler->loadImage(filename, desc.width, desc.height, desc.channelCount, &data))
         {
-            std::cerr << "Failed to load image: " << fileName << std::endl;
+            std::cerr << "Failed to load image: " << filename << std::endl;
             return false;
         }
         desc.mipCount = (unsigned int)std::log2(std::max(desc.width, desc.height)) + 1;
@@ -161,12 +161,12 @@ bool Material::acquireTexture(const std::string& fileName, mx::ImageHandlerPtr i
         // Free memory buffer.
         free(data);
 
-        imageCache[fileName] = desc;
+        imageCache[filename] = desc;
     }
     return true;
 }
 
-bool Material::bindTexture(const std::string& fileName, const std::string& uniformName, 
+bool Material::bindTexture(const std::string& filename, const std::string& uniformName, 
                            mx::ImageHandlerPtr imageHandler, ImageDesc& desc)
 {
     if (!_ngShader)
@@ -175,7 +175,7 @@ bool Material::bindTexture(const std::string& fileName, const std::string& unifo
     }
 
     _ngShader->bind();
-      if (acquireTexture(fileName, imageHandler, desc))
+      if (acquireTexture(filename, imageHandler, desc))
     {
         // Bind texture to shader.
         _ngShader->setUniform(uniformName, desc.textureId);
@@ -203,10 +203,10 @@ void Material::bindTextures(mx::ImageHandlerPtr imageHandler)
             continue;
         }
         const std::string& uniformName = uniform->name;
-        const std::string& fileName = uniform->value ? uniform->value->getValueString() : "";
+        const std::string& filename = uniform->value ? uniform->value->getValueString() : "";
 
         ImageDesc desc;
-        bindTexture(fileName, uniformName, imageHandler, desc);
+        bindTexture(filename, uniformName, imageHandler, desc);
     }
 }
 
@@ -251,10 +251,10 @@ void Material::bindUniforms(mx::ImageHandlerPtr imageHandler, mx::FilePath image
         {
             // Access cached image or load from disk.
             mx::FilePath path = imagePath / mx::FilePath(pair.second);
-            const std::string fileName = path.asString();
+            const std::string filename = path.asString();
 
             ImageDesc desc;
-            if (bindTexture(fileName, pair.first, imageHandler, desc))
+            if (bindTexture(filename, pair.first, imageHandler, desc))
             {
                 // Bind any associated uniforms.
                 if (pair.first == "u_envRadiance")
