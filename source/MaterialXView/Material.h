@@ -55,7 +55,7 @@ class Material
                      mx::ImageHandlerPtr imageHandler, ImageDesc& desc);
 
     /// Bind required file textures to shader
-    void Material::bindTextures(mx::ImageHandlerPtr imageHandler);
+    void bindTextures(mx::ImageHandlerPtr imageHandler, mx::FilePath imagePath);
 
     /// Return if the shader is has transparency
     bool hasTransparency() const { return _hasTransparency; }

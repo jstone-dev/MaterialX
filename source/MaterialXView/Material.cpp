@@ -237,7 +237,8 @@ bool Material::bindTexture(const std::string& filename, const std::string& unifo
     }
 
     _ngShader->bind();
-      if (acquireTexture(filename, imageHandler, desc))
+
+    if (acquireTexture(filename, imageHandler, desc))
     {
         // Bind texture to shader.
         _ngShader->setUniform(uniformName, desc.textureId);
@@ -254,7 +255,7 @@ bool Material::bindTexture(const std::string& filename, const std::string& unifo
     return false;
 }
 
-void Material::bindTextures(mx::ImageHandlerPtr imageHandler)
+void Material::bindTextures(mx::ImageHandlerPtr imageHandler, mx::FilePath imagePath)
 {
     mx::HwShaderPtr hwShader = mxShader();
     const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
@@ -265,7 +266,11 @@ void Material::bindTextures(mx::ImageHandlerPtr imageHandler)
             continue;
         }
         const std::string& uniformName = uniform->name;
-        const std::string& filename = uniform->value ? uniform->value->getValueString() : "";
+        std::string filename;
+        if (uniform->value)
+        {
+            filename = imagePath / uniform->value->getValueString();
+        }
 
         ImageDesc desc;
         bindTexture(filename, uniformName, imageHandler, desc);
@@ -273,7 +278,7 @@ void Material::bindTextures(mx::ImageHandlerPtr imageHandler)
 }
 
 void Material::bindUniforms(mx::ImageHandlerPtr imageHandler, mx::FilePath imagePath, int envSamples,
-                  mx::Matrix44& world, mx::Matrix44& view, mx::Matrix44& proj)
+                            mx::Matrix44& world, mx::Matrix44& view, mx::Matrix44& proj)
 {
     GLShaderPtr shader = ngShader();
     mx::HwShaderPtr hwShader = mxShader();
@@ -296,7 +301,7 @@ void Material::bindUniforms(mx::ImageHandlerPtr imageHandler, mx::FilePath image
     }
 
     // Bind surface textures
-    bindTextures(imageHandler);
+    bindTextures(imageHandler, imagePath);
 
     // Bind light properties.
     if (shader->uniform("u_envSamples", false) != -1)
