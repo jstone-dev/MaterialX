@@ -4,6 +4,7 @@
 #include <nanogui/combobox.h>
 #include <nanogui/layout.h>
 #include <nanogui/messagedialog.h>
+#include <nanogui/label.h>
 
 #include <iostream>
 #include <fstream>
@@ -69,18 +70,25 @@ Viewer::Viewer() :
             {
                 loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
                 _renderableElementIndex = _renderableElements.size() ? 0 : -1;
-                mx::ElementPtr elem = _renderableElementIndex >= 0  ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
-                _material = Material::generateShader(_searchPath, elem);
-                if (_material)
-                {
-                    _material->bindMesh(_mesh);
-                }
+                setElementToRender(_renderableElementIndex);
+                updateMaterialComboBox();
             }
             catch (std::exception& e)
             {
                 new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
             mProcessEvents = true;
+        }
+    });
+
+    _materialComboBox = new ng::ComboBox(_window, {"None"});
+    _materialComboBox->setCallback([this](int choice) {
+        mx::ElementPtr elem = choice >= 0 ? _renderableElements[choice] : nullptr;
+        _material = Material::generateShader(_searchPath, elem);
+        if (_material)
+        {
+            _material->bindMesh(_mesh);
+            _renderableElementIndex = choice;
         }
     });
 
@@ -116,16 +124,36 @@ Viewer::Viewer() :
     {
         loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
         _renderableElementIndex = _renderableElements.size() ? 0 : -1;
-        mx::ElementPtr elem = _renderableElementIndex >= 0  ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
+        setElementToRender(_renderableElementIndex);
+        updateMaterialComboBox();
+    }
+    catch (std::exception& e)
+    {
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
+    }
+}
+
+void Viewer::updateMaterialComboBox()
+{
+    std::vector<std::string> items;
+    for (size_t i = 0; i < _renderableElements.size(); i++)
+    {
+        items.push_back(_renderableElements[i]->getName());
+    }
+    _materialComboBox->setItems(items);
+    performLayout();
+}
+
+void Viewer::setElementToRender(int index)
+{
+    mx::ElementPtr elem = index >= 0 ? _renderableElements[index] : nullptr;
+    if (elem)
+    {
         _material = Material::generateShader(_searchPath, elem);
         if (_material)
         {
             _material->bindMesh(_mesh);
         }
-    }
-    catch (std::exception& e)
-    {
-        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
     }
 }
 
@@ -137,21 +165,13 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     }
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
     {
-        mx::ElementPtr elem = _renderableElements.size() ? _renderableElements[0] : nullptr;
-        if (!elem)
+        try 
         {
-            try
-            {
-                _material = Material::generateShader(_searchPath, elem);
-                if (_material)
-                {
-                    _material->bindMesh(_mesh);
-                }
-            }
-            catch (std::exception& e)
-            {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
-            }
+            setElementToRender(_renderableElementIndex);
+        }
+        catch (std::exception& e)
+        {
+            new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
         }
         return true;
     }
@@ -186,11 +206,13 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         if (elementSize > 1)
         {
             _renderableElementIndex = (_renderableElementIndex + 1) % elementSize;
-            mx::ElementPtr elem = _renderableElementIndex >= 0 ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
-            _material = Material::generateShader(_searchPath, elem);
-            if (_material)
+            try
             {
-                _material->bindMesh(_mesh);
+                setElementToRender(_renderableElementIndex);
+            }
+            catch (std::exception& e)
+            {
+                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
         }
     }
@@ -200,11 +222,13 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         if (elementSize > 1)
         {
             _renderableElementIndex = (_renderableElementIndex + elementSize - 1) % elementSize;
-            mx::ElementPtr elem = _renderableElementIndex >= 0 ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
-            _material = Material::generateShader(_searchPath, elem);
-            if (_material)
+            try
             {
-                _material->bindMesh(_mesh);
+                setElementToRender(_renderableElementIndex);
+            }
+            catch (std::exception& e)
+            {
+                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
         }
     }

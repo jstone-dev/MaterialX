@@ -46,6 +46,9 @@ class Viewer : public ng::Screen
                                mx::Matrix44& view,
                                mx::Matrix44& proj);
 
+    void setElementToRender(int index);
+    void updateMaterialComboBox();
+
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;
@@ -64,6 +67,9 @@ class Viewer : public ng::Screen
     mx::DocumentPtr _materialDocument;
     std::vector<mx::ElementPtr> _renderableElements;
     int _renderableElementIndex;
+    ng::ComboBox* _materialComboBox;
+    bool _materialComboBoxDirty;
+
     mx::ImageHandlerPtr _imageHandler;
 };
 
