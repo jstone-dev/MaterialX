@@ -46,7 +46,7 @@ class Viewer : public ng::Screen
                                mx::Matrix44& view,
                                mx::Matrix44& proj);
 
-    void setElementToRender(int index);
+    bool setElementToRender(int index);
     void updateMaterialComboBox();
 
   private:

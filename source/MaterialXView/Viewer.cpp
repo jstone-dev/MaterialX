@@ -144,7 +144,7 @@ void Viewer::updateMaterialComboBox()
     performLayout();
 }
 
-void Viewer::setElementToRender(int index)
+bool Viewer::setElementToRender(int index)
 {
     mx::ElementPtr elem = index >= 0 ? _renderableElements[index] : nullptr;
     if (elem)
@@ -153,8 +153,10 @@ void Viewer::setElementToRender(int index)
         if (_material)
         {
             _material->bindMesh(_mesh);
+            return true;
         }
     }
+    return false;
 }
 
 bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
@@ -200,38 +202,36 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         return true;
     }
 
-    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
         int elementSize = static_cast<int>(_renderableElements.size());
         if (elementSize > 1)
         {
-            _renderableElementIndex = (_renderableElementIndex + 1) % elementSize;
+            int newIndex = 0;
+            if (key == GLFW_KEY_RIGHT)
+            {
+                newIndex = (_renderableElementIndex + 1) % elementSize;
+            }
+            else
+            {
+                newIndex = (_renderableElementIndex + elementSize - 1) % elementSize;
+            }
             try
             {
-                setElementToRender(_renderableElementIndex);
+                if (setElementToRender(newIndex))
+                {
+                    _materialComboBox->setSelectedIndex(newIndex);
+                    _renderableElementIndex = newIndex;
+                }
             }
             catch (std::exception& e)
             {
                 new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
         }
+        return true;
     }
-    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
-    {
-        int elementSize = static_cast<int>(_renderableElements.size());
-        if (elementSize > 1)
-        {
-            _renderableElementIndex = (_renderableElementIndex + elementSize - 1) % elementSize;
-            try
-            {
-                setElementToRender(_renderableElementIndex);
-            }
-            catch (std::exception& e)
-            {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
-            }
-        }
-    }
+
     return false;
 }
 

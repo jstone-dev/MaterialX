@@ -269,7 +269,15 @@ void Material::bindTextures(mx::ImageHandlerPtr imageHandler, mx::FilePath image
         std::string filename;
         if (uniform->value)
         {
-            filename = imagePath / uniform->value->getValueString();
+            mx::FilePath uniformPath(uniform->value->getValueString());
+            if (uniformPath.isAbsolute())
+            {
+                filename = uniformPath;
+            }
+            else
+            {
+                filename = imagePath / uniformPath;
+            }
         }
 
         ImageDesc desc;
