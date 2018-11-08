@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <math.h>
 
 const float PI = std::acos(-1.0f);
 
@@ -66,7 +67,10 @@ Viewer::Viewer() :
             _materialFilename = filename;
             try
             {
-                _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+                loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
+                _renderableElementIndex = _renderableElements.size() ? 0 : -1;
+                mx::ElementPtr elem = _renderableElementIndex >= 0  ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
+                _material = Material::generateShader(_searchPath, elem);
                 if (_material)
                 {
                     _material->bindMesh(_mesh);
@@ -110,7 +114,10 @@ Viewer::Viewer() :
 
     try
     {
-        _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+        loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
+        _renderableElementIndex = _renderableElements.size() ? 0 : -1;
+        mx::ElementPtr elem = _renderableElementIndex >= 0  ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
+        _material = Material::generateShader(_searchPath, elem);
         if (_material)
         {
             _material->bindMesh(_mesh);
@@ -130,11 +137,12 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     }
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
     {
-        if (!_materialFilename.isEmpty())
+        mx::ElementPtr elem = _renderableElements.size() ? _renderableElements[0] : nullptr;
+        if (!elem)
         {
             try
             {
-                _material = Material::generateShader(_materialFilename, _searchPath, _stdLib);
+                _material = Material::generateShader(_searchPath, elem);
                 if (_material)
                 {
                     _material->bindMesh(_mesh);
@@ -153,12 +161,16 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                mx::HwShaderPtr hwShader = nullptr;
-                StringPair source = generateSource(_materialFilename, _searchPath, _stdLib, hwShader);
-                std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
-                mx::StringVec splitName = mx::splitString(baseName, ".");
-                writeTextFile(source.first, _startPath / (baseName + "_vs.glsl"));
-                writeTextFile(source.second, _startPath / (baseName + "_ps.glsl"));
+                mx::ElementPtr elem = _renderableElements.size() ? _renderableElements[0] : nullptr;
+                if (elem)
+                {
+                    mx::HwShaderPtr hwShader = nullptr;
+                    StringPair source = generateSource(_searchPath, hwShader, elem);
+                    std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
+                    mx::StringVec splitName = mx::splitString(baseName, ".");
+                    writeTextFile(source.first, _startPath / (baseName + "_vs.glsl"));
+                    writeTextFile(source.second, _startPath / (baseName + "_ps.glsl"));
+                }
             }
             catch (std::exception& e)
             {
@@ -166,6 +178,35 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             }
         }
         return true;
+    }
+
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    {
+        int elementSize = static_cast<int>(_renderableElements.size());
+        if (elementSize > 1)
+        {
+            _renderableElementIndex = (_renderableElementIndex + 1) % elementSize;
+            mx::ElementPtr elem = _renderableElementIndex >= 0 ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
+            _material = Material::generateShader(_searchPath, elem);
+            if (_material)
+            {
+                _material->bindMesh(_mesh);
+            }
+        }
+    }
+    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+    {
+        int elementSize = static_cast<int>(_renderableElements.size());
+        if (elementSize > 1)
+        {
+            _renderableElementIndex = (_renderableElementIndex + elementSize - 1) % elementSize;
+            mx::ElementPtr elem = _renderableElementIndex >= 0 ? _renderableElements[size_t(_renderableElementIndex)] : nullptr;
+            _material = Material::generateShader(_searchPath, elem);
+            if (_material)
+            {
+                _material->bindMesh(_mesh);
+            }
+        }
     }
     return false;
 }

@@ -5,6 +5,7 @@
 #include <MaterialXGenShader/HwShader.h>
 
 #include <iostream>
+#include <unordered_set>
 
 using MatrixXfProxy = Eigen::Map<const ng::MatrixXf>;
 using MatrixXuProxy = Eigen::Map<const ng::MatrixXu>;
@@ -33,34 +34,95 @@ void loadLibraries(const mx::StringVec& libraryNames, const mx::FilePath& search
     }
 }
 
-StringPair generateSource(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib, mx::HwShaderPtr& hwShader)
+void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::DocumentPtr stdLib, std::vector<mx::ElementPtr>& elements)
 {
-    mx::DocumentPtr doc = mx::createDocument();
+    elements.clear();
+
+    doc = mx::createDocument();
     mx::readFromXmlFile(doc, filePath);
     doc->importLibrary(stdLib);
 
+    std::vector<mx::NodeGraphPtr> nodeGraphs = doc->getNodeGraphs();
+    std::vector<mx::OutputPtr> outputList = doc->getOutputs();
+    std::unordered_set<mx::OutputPtr> outputSet(outputList.begin(), outputList.end());
+    std::vector<mx::MaterialPtr> materials = doc->getMaterials();
+
+    if (!materials.empty() || !nodeGraphs.empty() || !outputList.empty())
+    {
+        std::unordered_set<mx::OutputPtr> shaderrefOutputs;
+        for (auto material : materials)
+        {
+            for (auto shaderRef : material->getShaderRefs())
+            {
+                if (!shaderRef->hasSourceUri())
+                {
+                    elements.push_back(shaderRef);
+
+                    // Find all bindinputs which reference outputs and outputgraphs
+                    for (auto bindInput : shaderRef->getBindInputs())
+                    {
+                        mx::OutputPtr outputPtr = bindInput->getConnectedOutput();
+                        if (outputPtr)
+                        {
+                            shaderrefOutputs.insert(outputPtr);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Find node graph outputs
+        for (mx::NodeGraphPtr nodeGraph : nodeGraphs)
+        {
+            // Skip anything from an include file including libraries.
+            if (!nodeGraph->hasSourceUri())
+            {
+                std::vector<mx::OutputPtr> nodeGraphOutputs = nodeGraph->getOutputs();
+                for (mx::OutputPtr output : nodeGraphOutputs)
+                {
+                    // For now we skip any outputs which are referenced elsewhere.
+                    // TODO: We could add an option to also validate them.
+                    if (shaderrefOutputs.count(output) == 0)
+                    {
+                        outputSet.insert(output);
+                    }
+                }
+            }
+        }
+
+        // Run validation on the outputs
+        for (mx::OutputPtr output : outputSet)
+        {
+            // Skip anything from include files
+            if (!output->hasSourceUri())
+            {
+                elements.push_back(output);
+            }
+        }
+    }
+#if 0
     mx::ElementPtr elem = nullptr;
     for (mx::MaterialPtr material : doc->getMaterials())
     {
         std::vector<mx::ShaderRefPtr> shaderRefs = material->getShaderRefs();
-        if (!shaderRefs.empty())
+        for (auto shaderRef : shaderRefs)
         {
-            elem = shaderRefs[0];
-            break;
+            elements.push_back(shaderRef);
         }
     }
-    if (!elem)
+    for (mx::NodeGraphPtr nodeGraph : doc->getNodeGraphs())
     {
-        for (mx::NodeGraphPtr nodeGraph : doc->getNodeGraphs())
+        std::vector<mx::OutputPtr> outputs = nodeGraph->getOutputs();
+        for (auto output : outputs)
         {
-            std::vector<mx::OutputPtr> outputs = nodeGraph->getOutputs();
-            if (!outputs.empty())
-            {
-                elem = outputs[0];
-                break;
-            }
+            elements.push_back(output);
         }
     }
+#endif
+}
+
+StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem)
+{  
     if (!elem)
     {
         return StringPair();
@@ -82,14 +144,14 @@ StringPair generateSource(const mx::FilePath& filePath, const mx::FilePath& sear
     return StringPair(vertexShader, pixelShader);
 }
 
-MaterialPtr Material::generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib)
+MaterialPtr Material::generateShader(const mx::FilePath& searchPath, mx::ElementPtr elem)
 {
     mx::HwShaderPtr hwShader = nullptr;
-    StringPair source = generateSource(filePath, searchPath, stdLib, hwShader);
+    StringPair source = generateSource(searchPath, hwShader, elem);
     if (!source.first.empty() && !source.second.empty())
     {
         GLShaderPtr ngShader = GLShaderPtr(new ng::GLShader());
-        ngShader->init(filePath.getBaseName(), source.first, source.second);
+        ngShader->init(elem->getNamePath(), source.first, source.second);
 
         MaterialPtr shader = MaterialPtr(new Material(ngShader, hwShader));
         shader->_hasTransparency = hwShader ? hwShader->hasTransparency() : false;

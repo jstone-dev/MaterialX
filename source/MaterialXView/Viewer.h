@@ -61,6 +61,9 @@ class Viewer : public ng::Screen
     int _envSamples;
 
     mx::DocumentPtr _stdLib;
+    mx::DocumentPtr _materialDocument;
+    std::vector<mx::ElementPtr> _renderableElements;
+    int _renderableElementIndex;
     mx::ImageHandlerPtr _imageHandler;
 };
 

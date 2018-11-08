@@ -35,7 +35,7 @@ class ImageDesc
 class Material
 {
   public:
-    static MaterialPtr generateShader(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib);
+    static MaterialPtr generateShader(const mx::FilePath& searchPath, mx::ElementPtr elem);
 
     /// Get Nano-gui shader
     GLShaderPtr ngShader() const { return _ngShader; }
@@ -76,7 +76,8 @@ class Material
 };
 
 void loadLibraries(const mx::StringVec& libraryNames, const mx::FilePath& searchPath, mx::DocumentPtr doc);
+void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& document, mx::DocumentPtr stdLib, std::vector<mx::ElementPtr>& elements);
 
-StringPair generateSource(const mx::FilePath& filePath, const mx::FilePath& searchPath, mx::DocumentPtr stdLib, mx::HwShaderPtr& hwShader);
+StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem);
 
 #endif // MATERIALXVIEW_MATERIAL_H
