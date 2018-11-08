@@ -56,6 +56,7 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
             {
                 if (!shaderRef->hasSourceUri())
                 {
+                    // Add in all shader references which are not part of a node definition library
                     elements.push_back(shaderRef);
 
                     // Find all bindinputs which reference outputs and outputgraphs
@@ -80,8 +81,7 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
                 std::vector<mx::OutputPtr> nodeGraphOutputs = nodeGraph->getOutputs();
                 for (mx::OutputPtr output : nodeGraphOutputs)
                 {
-                    // For now we skip any outputs which are referenced elsewhere.
-                    // TODO: We could add an option to also validate them.
+                    // We skip any outputs which are referenced elsewhere.
                     if (shaderrefOutputs.count(output) == 0)
                     {
                         outputSet.insert(output);
@@ -90,7 +90,7 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
             }
         }
 
-        // Run validation on the outputs
+        // Add ouptuts which are not part of library definitions
         for (mx::OutputPtr output : outputSet)
         {
             // Skip anything from include files
@@ -100,25 +100,6 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
             }
         }
     }
-#if 0
-    mx::ElementPtr elem = nullptr;
-    for (mx::MaterialPtr material : doc->getMaterials())
-    {
-        std::vector<mx::ShaderRefPtr> shaderRefs = material->getShaderRefs();
-        for (auto shaderRef : shaderRefs)
-        {
-            elements.push_back(shaderRef);
-        }
-    }
-    for (mx::NodeGraphPtr nodeGraph : doc->getNodeGraphs())
-    {
-        std::vector<mx::OutputPtr> outputs = nodeGraph->getOutputs();
-        for (auto output : outputs)
-        {
-            elements.push_back(output);
-        }
-    }
-#endif
 }
 
 StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem)

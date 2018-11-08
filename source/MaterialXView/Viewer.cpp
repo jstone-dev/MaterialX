@@ -138,7 +138,7 @@ void Viewer::updateMaterialComboBox()
     std::vector<std::string> items;
     for (size_t i = 0; i < _renderableElements.size(); i++)
     {
-        items.push_back(_renderableElements[i]->getName());
+        items.push_back(_renderableElements[i]->getNamePath());
     }
     _materialComboBox->setItems(items);
     performLayout();
@@ -146,7 +146,7 @@ void Viewer::updateMaterialComboBox()
 
 bool Viewer::setElementToRender(int index)
 {
-    mx::ElementPtr elem = index >= 0 ? _renderableElements[index] : nullptr;
+    mx::ElementPtr elem = (index >= 0 && index < _renderableElements.size()) ? _renderableElements[index] : nullptr;
     if (elem)
     {
         _material = Material::generateShader(_searchPath, elem);
@@ -169,7 +169,10 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     {
         try 
         {
+            loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
+            _renderableElementIndex = _renderableElements.size() ? 0 : -1;
             setElementToRender(_renderableElementIndex);
+            updateMaterialComboBox();
         }
         catch (std::exception& e)
         {
@@ -202,6 +205,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         return true;
     }
 
+    // Allow left and right keys to cycle through the renderable elements
     if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
         int elementSize = static_cast<int>(_renderableElements.size());

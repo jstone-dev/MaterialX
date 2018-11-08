@@ -46,7 +46,9 @@ class Viewer : public ng::Screen
                                mx::Matrix44& view,
                                mx::Matrix44& proj);
 
+    /// Set the current element to render in the list of renderables
     bool setElementToRender(int index);
+    /// Update the material list combo box 
     void updateMaterialComboBox();
 
   private:
@@ -65,10 +67,13 @@ class Viewer : public ng::Screen
 
     mx::DocumentPtr _stdLib;
     mx::DocumentPtr _materialDocument;
+
+    /// List of renderable elements within a given document
     std::vector<mx::ElementPtr> _renderableElements;
+    /// Index to indicate which is the "active" element to render in the list
     int _renderableElementIndex;
+    /// Associated UI combo box to display the list
     ng::ComboBox* _materialComboBox;
-    bool _materialComboBoxDirty;
 
     mx::ImageHandlerPtr _imageHandler;
 };

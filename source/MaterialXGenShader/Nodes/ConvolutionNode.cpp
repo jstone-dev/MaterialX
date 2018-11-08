@@ -161,7 +161,7 @@ void ConvolutionNode::emitInputSamplesUV(const ShaderNode& node, GenContext& con
     }
     else
     {
-        if (inInput->value)
+        if (!inInput->value)
         {
             throw ExceptionShaderGenError("No connection or value found on node: '" + node.getName() + "'");
         }
