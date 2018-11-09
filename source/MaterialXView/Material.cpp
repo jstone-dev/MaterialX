@@ -113,7 +113,6 @@ StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwSha
     shaderGenerator->registerSourceCodeSearchPath(searchPath);
 
     mx::GenOptions options;
-    options.shaderInterfaceType = mx::SHADER_INTERFACE_REDUCED;
     options.hwTransparency = isTransparentSurface(elem, *shaderGenerator);
     mx::ShaderPtr sgShader = shaderGenerator->generate("Shader", elem, options);
 

@@ -44,8 +44,9 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         mx::Color2 v = value->asA<mx::Color2>();
         ng::Color c;
         c.r() = v[0];
-        c.g() = v[1];
+        c.g() = 0.0f;
         c.b() = 0.0f;
+        c.w() = v[1];
         form.addVariable(label, c, false);
     }
     else if (value->isA<mx::Color3>())
@@ -55,6 +56,7 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         c.r() = v[0];
         c.g() = v[1];
         c.b() = v[2];
+        c.w() = 1.0;
         form.addVariable(label, c, false);
     }
     else if (value->isA<mx::Color4>())
@@ -64,6 +66,7 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         c.r() = v[0];
         c.g() = v[1];
         c.b() = v[2];
+        c.w() = v[3];
         form.addVariable(label, c, false);
     }
     else if (value->isA<mx::Vector2>())
@@ -73,6 +76,7 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         c.r() = v[0];
         c.g() = v[1];
         c.b() = 0.0f;
+        c.w() = 1.0f;
         form.addVariable(label, c, false);
     }
     else if (value->isA<mx::Vector3>())
@@ -82,6 +86,7 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         c.r() = v[0];
         c.g() = v[1];
         c.b() = v[2];
+        c.w() = 1.0;
         form.addVariable(label, c, false);
     }
     else if (value->isA<mx::Vector4>())
@@ -91,7 +96,16 @@ void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper
         c.r() = v[0];
         c.g() = v[1];
         c.b() = v[2];
+        c.w() = v[3];
         form.addVariable(label, c, false);
+    }
+    else if (value->isA<std::string>())
+    {
+        std::string v = value->asA<std::string>();
+        if (!v.empty())
+        {
+            form.addVariable(label, v, false);
+        }
     }
 }
 
@@ -245,7 +259,11 @@ void Viewer::updatePropertySheet()
 }
 
 Viewer::Viewer() :
-    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView"),
+    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView",
+        /*resizable*/ true, /*fullscreen*/false, /*colorBits*/ 16,
+        /*alphaBits*/ 16, /*depthBits*/ 24, /*stencilBits*/ 8,
+        /* nSamples */ 8,
+        /* glMajor*/ 4, /*glMinor*/ 0),
     _translationActive(false),
     _translationStart(0, 0),
     _envSamples(MIN_ENV_SAMPLES)
@@ -291,9 +309,9 @@ Viewer::Viewer() :
             {
                 loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
                 _renderableElementIndex = _renderableElements.size() ? 0 : -1;
-                setElementToRender(_renderableElementIndex);
                 updateMaterialComboBox();
                 updatePropertySheet();
+                setElementToRender(_renderableElementIndex);
             }
             catch (std::exception& e)
             {
@@ -346,8 +364,8 @@ Viewer::Viewer() :
     {
         loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
         _renderableElementIndex = _renderableElements.size() ? 0 : -1;
-        setElementToRender(_renderableElementIndex);
         updateMaterialComboBox();
+        setElementToRender(_renderableElementIndex);
     }
     catch (std::exception& e)
     {
@@ -402,9 +420,9 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             loadDocument(_materialFilename, _materialDocument, _stdLib, _renderableElements);
             _renderableElementIndex = _renderableElements.size() ? 0 : -1;
-            setElementToRender(_renderableElementIndex);
             updateMaterialComboBox();
             updatePropertySheet();
+            setElementToRender(_renderableElementIndex);
         }
         catch (std::exception& e)
         {

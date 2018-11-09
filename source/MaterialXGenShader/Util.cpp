@@ -414,7 +414,7 @@ bool isTransparentSurface(ElementPtr element, const ShaderGenerator& shadergen)
                 {
                     // Unconnected, check the value
                     ValuePtr value = opacity->getValue();
-                    if (!value || isWhite(value->asA<Color3>()))
+                    if (!value || value->isA<Color3>() && isWhite(value->asA<Color3>()))
                     {
                         opaque = true;
                     }
