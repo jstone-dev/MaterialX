@@ -56,69 +56,88 @@ void Viewer::updatePropertySheet()
     {
         element = _renderableElements[_renderableElementIndex];
     }
+
+    // This should be an option
+    bool showOnlyBoundInputs = true;
+
     mx::ShaderRefPtr shaderRef = element ? element->asA<mx::ShaderRef>() : nullptr;
     if (shaderRef)
     {
-        std::vector<mx::BindInputPtr> inputs = shaderRef->getBindInputs();
-        if (inputs.size())
+        mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
+        if (nodeDef)
         {
-            _propertySheet->addGroup("Shader Inputs");
-        }
-        for (auto input : inputs)
-        {
-            mx::ValuePtr value = input->getValue();
-            if (value)
+            std::vector<mx::ValuePtr> formValues;
+            std::vector<mx::string> formNames;
+
+            for (mx::ParameterPtr elem : nodeDef->getParameters())
             {
-                if (value->isA<int>())
+                const std::string& elemName = elem->getName();
+                mx::BindParamPtr bindParam = shaderRef->getBindParam(elemName);
+                mx::ValuePtr value = nullptr;
+                if (bindParam)
                 {
-                    int v = value->asA<int>();
-                    _propertySheet->addVariable(input->getName(), v, false);
+                    if (!bindParam->getValueString().empty())
+                    {
+                         value = bindParam->getValue();
+                    }
                 }
-                else if (value->isA<float>())
+                if (!value && !showOnlyBoundInputs)
                 {
-                    float v = value->asA<float>();
-                    _propertySheet->addVariable(input->getName(), v, false);
+                    value = elem->getValue();
                 }
-                else if (value->isA<mx::Color3>())
+                if (value)
                 {
-                    mx::Color3 v = value->asA<mx::Color3>();
-                    ng::Color c;
-                    c.r() = v[0];
-                    c.g() = v[1];
-                    c.b() = v[2];
-                    _propertySheet->addVariable(input->getName(), c, false);
-                }
-                else if (value->isA<mx::Color4>())
-                {
-                    mx::Color4 v = value->asA<mx::Color4>();
-                    ng::Color c;
-                    c.r() = v[0];
-                    c.g() = v[1];
-                    c.b() = v[2];
-                    _propertySheet->addVariable(input->getName(), c, false);
+                    formValues.push_back(value);
+                    formNames.push_back(elemName);
                 }
             }
-        }
 
-        std::vector<mx::BindParamPtr> params = shaderRef->getBindParams();
-        if (params.size())
-        {
-            _propertySheet->addGroup("Shader Parameters");
-        }
-        for (auto param : params)
-        {
-            mx::ValuePtr value = param->getValue();
-            if (value)
+            size_t startOfInputs = formValues.size();
+            for (const mx::InputPtr& input : nodeDef->getInputs())
             {
+                const std::string& elemName = input->getName();
+                mx::BindInputPtr bindInput = shaderRef->getBindInput(elemName);
+                mx::ValuePtr value = nullptr;
+                if (bindInput)
+                {
+                    if (!bindInput->getValueString().empty())
+                    {
+                        value = bindInput->getValue();
+                    }
+                }
+                if (!value && !showOnlyBoundInputs)
+                {
+                    value = input->getValue();
+                }
+                if (value)
+                {
+                    formValues.push_back(value);
+                    formNames.push_back(elemName);
+                }
+            }
+
+            if (formValues.size() && startOfInputs > 0)
+            {
+                _propertySheet->addGroup("Shader Parameters");
+            }
+            for (size_t i=0; i<formValues.size(); i++)
+            {
+                if (i == startOfInputs)
+                {
+                    _propertySheet->addGroup("Shader Inputs");
+                }
+
+                mx::ValuePtr value = formValues[i];
+                const std::string& name = formNames[i];
                 if (value->isA<int>())
                 {
                     int v = value->asA<int>();
-                    _propertySheet->addVariable(param->getName(), v, false);
+                    _propertySheet->addVariable(name, v, false);
                 }
                 else if (value->isA<float>())
                 {
                     float v = value->asA<float>();
-                    _propertySheet->addVariable(param->getName(), v, false);
+                    _propertySheet->addVariable(name, v, false);
                 }
                 else if (value->isA<mx::Color3>())
                 {
@@ -127,7 +146,7 @@ void Viewer::updatePropertySheet()
                     c.r() = v[0];
                     c.g() = v[1];
                     c.b() = v[2];
-                    _propertySheet->addVariable(param->getName(), c, false);
+                    _propertySheet->addVariable(name, c, false);
                 }
                 else if (value->isA<mx::Color4>())
                 {
@@ -136,7 +155,7 @@ void Viewer::updatePropertySheet()
                     c.r() = v[0];
                     c.g() = v[1];
                     c.b() = v[2];
-                    _propertySheet->addVariable(param->getName(), c, false);
+                    _propertySheet->addVariable(name, c, false);
                 }
             }
         }
