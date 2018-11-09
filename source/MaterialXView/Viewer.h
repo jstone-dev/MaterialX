@@ -78,8 +78,12 @@ class Viewer : public ng::Screen
     /// Associated UI combo box to display the list
     ng::ComboBox* _materialComboBox;
 
+    /// Parent form for display property sheet
     ng::FormHelper* _propertySheet;
+    /// Window holding property sheet.
     ng::Window* _propertySheetWindow;
+    /// Option as to whether to show non-editable inputs. 
+    bool _showNonEditableInputs;
 
     mx::ImageHandlerPtr _imageHandler;
 };

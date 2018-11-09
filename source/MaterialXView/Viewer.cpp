@@ -22,7 +22,79 @@ void writeTextFile(const std::string& text, const std::string& filePath)
     file << text;
     file.close();
 }
-  
+ 
+void addValueToForm(mx::ValuePtr value, const std::string& label, ng::FormHelper& form)
+{
+    if (!value)
+    {
+        return;
+    }
+    if (value->isA<int>())
+    {
+        int v = value->asA<int>();
+        form.addVariable(label, v, false);
+    }
+    else if (value->isA<float>())
+    {
+        float v = value->asA<float>();
+        form.addVariable(label, v, false);
+    }
+    else if (value->isA<mx::Color2>())
+    {
+        mx::Color2 v = value->asA<mx::Color2>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = 0.0f;
+        form.addVariable(label, c, false);
+    }
+    else if (value->isA<mx::Color3>())
+    {
+        mx::Color3 v = value->asA<mx::Color3>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = v[2];
+        form.addVariable(label, c, false);
+    }
+    else if (value->isA<mx::Color4>())
+    {
+        mx::Color4 v = value->asA<mx::Color4>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = v[2];
+        form.addVariable(label, c, false);
+    }
+    else if (value->isA<mx::Vector2>())
+    {
+        mx::Vector2 v = value->asA<mx::Vector2>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = 0.0f;
+        form.addVariable(label, c, false);
+    }
+    else if (value->isA<mx::Vector3>())
+    {
+        mx::Vector3 v = value->asA<mx::Vector3>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = v[2];
+        form.addVariable(label, c, false);
+    }
+    else if (value->isA<mx::Vector4>())
+    {
+        mx::Vector4 v = value->asA<mx::Vector4>();
+        ng::Color c;
+        c.r() = v[0];
+        c.g() = v[1];
+        c.b() = v[2];
+        form.addVariable(label, c, false);
+    }
+}
+
 void Viewer::updatePropertySheet()
 {
     if (!_propertySheet)
@@ -30,23 +102,27 @@ void Viewer::updatePropertySheet()
         _propertySheet = new ng::FormHelper(this);
     }
    
-    // Bit convoluted way to clear out an existing window
-    // on a FormHelper class.
-    ng::Vector2i prevPosition(0, 0);
+    // Remove the window associated with the form.
+    // This is done by explicitly creating and owning the window
+    // as opposed to having it being done by the form
+    ng::Vector2i previousPosition(0, 0);
     if (_propertySheetWindow)
     {
         for (int i = 0; i < _propertySheetWindow->childCount(); i++)
         {
             _propertySheetWindow->removeChild(i);
         }
-        prevPosition = _propertySheetWindow->position();
+        // We don't want the property sheet to move when
+        // we update it's contents so cache any previous position
+        // to use when we create a new window.
+        previousPosition = _propertySheetWindow->position();
         this->removeChild(_propertySheetWindow);
     }
     _propertySheetWindow = new ng::Window(this, "Property Sheet");
     ng::AdvancedGridLayout* layout = new ng::AdvancedGridLayout({ 10, 0, 10, 0 }, {});
     layout->setMargin(10);
     layout->setColStretch(2, 1);
-    _propertySheetWindow->setPosition(prevPosition);
+    _propertySheetWindow->setPosition(previousPosition);
     _propertySheetWindow->setVisible(true);
     _propertySheetWindow->setLayout(layout);
     _propertySheet->setWindow(_propertySheetWindow);
@@ -56,11 +132,13 @@ void Viewer::updatePropertySheet()
     {
         element = _renderableElements[_renderableElementIndex];
     }
+    if (!element)
+    {
+        return;
+    }
 
-    // This should be an option
-    bool showOnlyBoundInputs = true;
-
-    mx::ShaderRefPtr shaderRef = element ? element->asA<mx::ShaderRef>() : nullptr;
+    // Update to show properties for a shader reference
+    mx::ShaderRefPtr shaderRef = element->asA<mx::ShaderRef>();
     if (shaderRef)
     {
         mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
@@ -69,6 +147,7 @@ void Viewer::updatePropertySheet()
             std::vector<mx::ValuePtr> formValues;
             std::vector<mx::string> formNames;
 
+            // Scan for bindinputs
             for (mx::ParameterPtr elem : nodeDef->getParameters())
             {
                 const std::string& elemName = elem->getName();
@@ -81,7 +160,8 @@ void Viewer::updatePropertySheet()
                          value = bindParam->getValue();
                     }
                 }
-                if (!value && !showOnlyBoundInputs)
+                // Adding nodedef values if desired
+                if (!value && _showNonEditableInputs)
                 {
                     value = elem->getValue();
                 }
@@ -92,6 +172,7 @@ void Viewer::updatePropertySheet()
                 }
             }
 
+            // Scan for bindinputs
             size_t startOfInputs = formValues.size();
             for (const mx::InputPtr& input : nodeDef->getInputs())
             {
@@ -105,7 +186,8 @@ void Viewer::updatePropertySheet()
                         value = bindInput->getValue();
                     }
                 }
-                if (!value && !showOnlyBoundInputs)
+                //  Adding nodedef values if desired
+                if (!value && _showNonEditableInputs)
                 {
                     value = input->getValue();
                 }
@@ -129,37 +211,36 @@ void Viewer::updatePropertySheet()
 
                 mx::ValuePtr value = formValues[i];
                 const std::string& name = formNames[i];
-                if (value->isA<int>())
+                addValueToForm(value, name, *_propertySheet);
+            }
+        }
+    }
+
+    else
+    {
+        // Handle showing properties on node directly connected to an output
+        mx::OutputPtr graphOutput = element->asA<mx::Output>();
+        if (graphOutput && graphOutput->getParent())
+        {
+            mx::NodePtr node = graphOutput->getConnectedNode();
+            if (node)
+            {
+                for (auto input : node->getInputs())
                 {
-                    int v = value->asA<int>();
-                    _propertySheet->addVariable(name, v, false);
+                    mx::ValuePtr value = input->getValue();
+                    std::string label = input->getName();
+                    addValueToForm(value, label, *_propertySheet);
                 }
-                else if (value->isA<float>())
+                for (auto param : node->getParameters())
                 {
-                    float v = value->asA<float>();
-                    _propertySheet->addVariable(name, v, false);
-                }
-                else if (value->isA<mx::Color3>())
-                {
-                    mx::Color3 v = value->asA<mx::Color3>();
-                    ng::Color c;
-                    c.r() = v[0];
-                    c.g() = v[1];
-                    c.b() = v[2];
-                    _propertySheet->addVariable(name, c, false);
-                }
-                else if (value->isA<mx::Color4>())
-                {
-                    mx::Color4 v = value->asA<mx::Color4>();
-                    ng::Color c;
-                    c.r() = v[0];
-                    c.g() = v[1];
-                    c.b() = v[2];
-                    _propertySheet->addVariable(name, c, false);
+                    mx::ValuePtr value = param->getValue();
+                    std::string label = param->getName();
+                    addValueToForm(value, label, *_propertySheet);
                 }
             }
         }
     }
+
     performLayout();
 }
 
@@ -252,7 +333,7 @@ Viewer::Viewer() :
     _stdLib = mx::createDocument();
     _startPath = mx::FilePath::getCurrentPath();
     _searchPath = _startPath / mx::FilePath("documents/Libraries");
-    _materialFilename = std::string("documents/TestSuite/sxpbrlib/materials/standard_surface_marble_1.mtlx");
+    _materialFilename = std::string("documents/TestSuite/sxpbrlib/materials/standard_surface_default.mtlx");
 
     _imageHandler = mx::TinyEXRImageHandler::create();
     loadLibraries({"stdlib", "sxpbrlib"}, _searchPath, _stdLib);
@@ -273,6 +354,9 @@ Viewer::Viewer() :
         new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
     }
 
+    // By default hind inputs which cannot be edited. e.g. for a shader ref there may be a lot of inputs
+    // which have not been overridden and thus are just the defaults.
+    _showNonEditableInputs = false;
     _propertySheet = nullptr;
     _propertySheetWindow = nullptr;
     updatePropertySheet();
