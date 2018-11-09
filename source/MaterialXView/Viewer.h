@@ -7,6 +7,7 @@
 
 #include <nanogui/glutil.h>
 #include <nanogui/screen.h>
+#include <nanogui/formhelper.h>
 
 namespace mx = MaterialX;
 namespace ng = nanogui;
@@ -51,6 +52,8 @@ class Viewer : public ng::Screen
     /// Update the material list combo box 
     void updateMaterialComboBox();
 
+    void updatePropertySheet();
+
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;
@@ -74,6 +77,9 @@ class Viewer : public ng::Screen
     int _renderableElementIndex;
     /// Associated UI combo box to display the list
     ng::ComboBox* _materialComboBox;
+
+    ng::FormHelper* _propertySheet;
+    ng::Window* _propertySheetWindow;
 
     mx::ImageHandlerPtr _imageHandler;
 };

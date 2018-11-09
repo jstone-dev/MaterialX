@@ -23,6 +23,127 @@ void writeTextFile(const std::string& text, const std::string& filePath)
     file.close();
 }
   
+void Viewer::updatePropertySheet()
+{
+    if (!_propertySheet)
+    {
+        _propertySheet = new ng::FormHelper(this);
+    }
+   
+    // Bit convoluted way to clear out an existing window
+    // on a FormHelper class.
+    ng::Vector2i prevPosition(0, 0);
+    if (_propertySheetWindow)
+    {
+        for (int i = 0; i < _propertySheetWindow->childCount(); i++)
+        {
+            _propertySheetWindow->removeChild(i);
+        }
+        prevPosition = _propertySheetWindow->position();
+        this->removeChild(_propertySheetWindow);
+    }
+    _propertySheetWindow = new ng::Window(this, "Property Sheet");
+    ng::AdvancedGridLayout* layout = new ng::AdvancedGridLayout({ 10, 0, 10, 0 }, {});
+    layout->setMargin(10);
+    layout->setColStretch(2, 1);
+    _propertySheetWindow->setPosition(prevPosition);
+    _propertySheetWindow->setVisible(true);
+    _propertySheetWindow->setLayout(layout);
+    _propertySheet->setWindow(_propertySheetWindow);
+
+    mx::ElementPtr element = nullptr;
+    if (_renderableElementIndex >= 0 && _renderableElementIndex < _renderableElements.size())
+    {
+        element = _renderableElements[_renderableElementIndex];
+    }
+    mx::ShaderRefPtr shaderRef = element ? element->asA<mx::ShaderRef>() : nullptr;
+    if (shaderRef)
+    {
+        std::vector<mx::BindInputPtr> inputs = shaderRef->getBindInputs();
+        if (inputs.size())
+        {
+            _propertySheet->addGroup("Shader Inputs");
+        }
+        for (auto input : inputs)
+        {
+            mx::ValuePtr value = input->getValue();
+            if (value)
+            {
+                if (value->isA<int>())
+                {
+                    int v = value->asA<int>();
+                    _propertySheet->addVariable(input->getName(), v, false);
+                }
+                else if (value->isA<float>())
+                {
+                    float v = value->asA<float>();
+                    _propertySheet->addVariable(input->getName(), v, false);
+                }
+                else if (value->isA<mx::Color3>())
+                {
+                    mx::Color3 v = value->asA<mx::Color3>();
+                    ng::Color c;
+                    c.r() = v[0];
+                    c.g() = v[1];
+                    c.b() = v[2];
+                    _propertySheet->addVariable(input->getName(), c, false);
+                }
+                else if (value->isA<mx::Color4>())
+                {
+                    mx::Color4 v = value->asA<mx::Color4>();
+                    ng::Color c;
+                    c.r() = v[0];
+                    c.g() = v[1];
+                    c.b() = v[2];
+                    _propertySheet->addVariable(input->getName(), c, false);
+                }
+            }
+        }
+
+        std::vector<mx::BindParamPtr> params = shaderRef->getBindParams();
+        if (params.size())
+        {
+            _propertySheet->addGroup("Shader Parameters");
+        }
+        for (auto param : params)
+        {
+            mx::ValuePtr value = param->getValue();
+            if (value)
+            {
+                if (value->isA<int>())
+                {
+                    int v = value->asA<int>();
+                    _propertySheet->addVariable(param->getName(), v, false);
+                }
+                else if (value->isA<float>())
+                {
+                    float v = value->asA<float>();
+                    _propertySheet->addVariable(param->getName(), v, false);
+                }
+                else if (value->isA<mx::Color3>())
+                {
+                    mx::Color3 v = value->asA<mx::Color3>();
+                    ng::Color c;
+                    c.r() = v[0];
+                    c.g() = v[1];
+                    c.b() = v[2];
+                    _propertySheet->addVariable(param->getName(), c, false);
+                }
+                else if (value->isA<mx::Color4>())
+                {
+                    mx::Color4 v = value->asA<mx::Color4>();
+                    ng::Color c;
+                    c.r() = v[0];
+                    c.g() = v[1];
+                    c.b() = v[2];
+                    _propertySheet->addVariable(param->getName(), c, false);
+                }
+            }
+        }
+    }
+    performLayout();
+}
+
 Viewer::Viewer() :
     ng::Screen(ng::Vector2i(1280, 960), "MaterialXView"),
     _translationActive(false),
@@ -72,6 +193,7 @@ Viewer::Viewer() :
                 _renderableElementIndex = _renderableElements.size() ? 0 : -1;
                 setElementToRender(_renderableElementIndex);
                 updateMaterialComboBox();
+                updatePropertySheet();
             }
             catch (std::exception& e)
             {
@@ -90,6 +212,7 @@ Viewer::Viewer() :
             _material->bindMesh(_mesh);
             _renderableElementIndex = choice;
         }
+        updatePropertySheet();
     });
 
     mx::StringVec sampleOptions;
@@ -106,12 +229,11 @@ Viewer::Viewer() :
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(2, index);
     });
 
-    performLayout();
 
     _stdLib = mx::createDocument();
     _startPath = mx::FilePath::getCurrentPath();
     _searchPath = _startPath / mx::FilePath("documents/Libraries");
-    _materialFilename = std::string("documents/TestSuite/sxpbrlib/materials/standard_surface_default.mtlx");
+    _materialFilename = std::string("documents/TestSuite/sxpbrlib/materials/standard_surface_marble_1.mtlx");
 
     _imageHandler = mx::TinyEXRImageHandler::create();
     loadLibraries({"stdlib", "sxpbrlib"}, _searchPath, _stdLib);
@@ -131,6 +253,12 @@ Viewer::Viewer() :
     {
         new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
     }
+
+    _propertySheet = nullptr;
+    _propertySheetWindow = nullptr;
+    updatePropertySheet();
+
+    performLayout();
 }
 
 void Viewer::updateMaterialComboBox()
@@ -173,6 +301,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             _renderableElementIndex = _renderableElements.size() ? 0 : -1;
             setElementToRender(_renderableElementIndex);
             updateMaterialComboBox();
+            updatePropertySheet();
         }
         catch (std::exception& e)
         {
