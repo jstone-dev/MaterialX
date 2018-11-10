@@ -137,7 +137,7 @@ void Viewer::updatePropertySheet()
     layout->setMargin(10);
     layout->setColStretch(2, 1);
     _propertySheetWindow->setPosition(previousPosition);
-    _propertySheetWindow->setVisible(true);
+    _propertySheetWindow->setVisible(false); // TODO: Add toggle for this display
     _propertySheetWindow->setLayout(layout);
     _propertySheet->setWindow(_propertySheetWindow);
 
@@ -318,6 +318,7 @@ Viewer::Viewer() :
     });
 
     _materialComboBox = new ng::ComboBox(_window, {"None"});
+    _materialComboBox->setChevronIcon(-1);
     _materialComboBox->setCallback([this](int choice) {
         mx::ElementPtr elem = choice >= 0 ? _renderableElements[choice] : nullptr;
         _material = Material::generateShader(_searchPath, elem);
