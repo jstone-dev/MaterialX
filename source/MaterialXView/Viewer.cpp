@@ -259,11 +259,7 @@ void Viewer::updatePropertySheet()
 }
 
 Viewer::Viewer() :
-    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView",
-        /*resizable*/ true, /*fullscreen*/false, /*colorBits*/ 16,
-        /*alphaBits*/ 16, /*depthBits*/ 24, /*stencilBits*/ 8,
-        /* nSamples */ 0, // Leave off as turning this on make sRGB display convertion to be disabled
-        /* glMajor*/ 4, /*glMinor*/ 0),
+    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView"),
     _translationActive(false),
     _translationStart(0, 0),
     _envSamples(MIN_ENV_SAMPLES)
