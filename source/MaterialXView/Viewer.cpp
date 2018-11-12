@@ -119,7 +119,7 @@ void Viewer::updatePropertySheet()
     // Remove the window associated with the form.
     // This is done by explicitly creating and owning the window
     // as opposed to having it being done by the form
-    ng::Vector2i previousPosition(0, 0);
+    ng::Vector2i previousPosition(15, _window->height() + 60);
     if (_propertySheetWindow)
     {
         for (int i = 0; i < _propertySheetWindow->childCount(); i++)
@@ -137,7 +137,7 @@ void Viewer::updatePropertySheet()
     layout->setMargin(10);
     layout->setColStretch(2, 1);
     _propertySheetWindow->setPosition(previousPosition);
-    _propertySheetWindow->setVisible(false); // TODO: Add toggle for this display
+    _propertySheetWindow->setVisible(_showPropertySheet);
     _propertySheetWindow->setLayout(layout);
     _propertySheet->setWindow(_propertySheetWindow);
 
@@ -345,6 +345,14 @@ Viewer::Viewer() :
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(2, index);
     });
 
+    ng::Button* toggle = new ng::Button(_window, "Property Sheet");
+    toggle->setFlags(ng::Button::ToggleButton);
+    toggle->setChangeCallback([this](bool state)
+    { 
+        _showPropertySheet = state;
+        this->_propertySheetWindow->setVisible(_showPropertySheet);
+        performLayout();
+    });
 
     _stdLib = mx::createDocument();
     _startPath = mx::FilePath::getCurrentPath();
@@ -375,6 +383,7 @@ Viewer::Viewer() :
     _showNonEditableInputs = false;
     _propertySheet = nullptr;
     _propertySheetWindow = nullptr;
+    _showPropertySheet = false; // Start up with property sheet hidden
     updatePropertySheet();
 
     performLayout();
@@ -479,6 +488,8 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
                 {
                     _elementSelectionBox->setSelectedIndex(newIndex);
                     _elementSelectionIndex = newIndex;
+                    updateElementSelections();
+                    updatePropertySheet();
                 }
             }
             catch (std::exception& e)

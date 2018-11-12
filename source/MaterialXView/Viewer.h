@@ -73,6 +73,7 @@ class Viewer : public ng::Screen
     ng::ComboBox* _elementSelectionBox;
 
     ng::FormHelper* _propertySheet;
+    bool _showPropertySheet;
     ng::Window* _propertySheetWindow;
     bool _showNonEditableInputs;
 
