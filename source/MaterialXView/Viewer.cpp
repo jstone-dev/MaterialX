@@ -331,6 +331,15 @@ Viewer::Viewer() :
         updatePropertySheet();
     });
 
+    ng::Button* propertySheetButton = new ng::Button(_window, "Property Sheet");
+    propertySheetButton->setFlags(ng::Button::ToggleButton);
+    propertySheetButton->setChangeCallback([this](bool state)
+    { 
+        _showPropertySheet = state;
+        this->_propertySheetWindow->setVisible(_showPropertySheet);
+        performLayout();
+    });
+
     mx::StringVec sampleOptions;
     for (int i = MIN_ENV_SAMPLES; i <= MAX_ENV_SAMPLES; i *= 2)
     {
@@ -343,15 +352,6 @@ Viewer::Viewer() :
     sampleBox->setCallback([this](int index)
     {
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(2, index);
-    });
-
-    ng::Button* toggle = new ng::Button(_window, "Property Sheet");
-    toggle->setFlags(ng::Button::ToggleButton);
-    toggle->setChangeCallback([this](bool state)
-    { 
-        _showPropertySheet = state;
-        this->_propertySheetWindow->setVisible(_showPropertySheet);
-        performLayout();
     });
 
     _stdLib = mx::createDocument();
