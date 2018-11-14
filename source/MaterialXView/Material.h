@@ -8,6 +8,7 @@
 #include <MaterialXFormat/File.h>
 
 #include <MaterialXRender/Handlers/TinyExrImageLoader.h>
+#include <MaterialXRender/OpenGL/GLTextureHandler.h>
 #include <MaterialXGenShader/HwShader.h>
 
 #include <nanogui/common.h>
@@ -36,15 +37,15 @@ class Material
     void bindMesh(MeshPtr& mesh);
 
     /// Bind uniforms to shader
-    void bindUniforms(mx::ImageLoaderPtr imageLoader, mx::FilePath imagePath, int envSamples,
+    void bindUniforms(mx::GLTextureHandlerPtr imageHandler, mx::FilePath imagePath, int envSamples,
                       mx::Matrix44& world, mx::Matrix44& view, mx::Matrix44& proj);
 
     /// Bind texture to shader
     bool bindTexture(const std::string& fileName, const std::string& uniformName,
-                     mx::ImageLoaderPtr imageLoader, mx::ImageDesc& desc);
+                     mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc);
 
     /// Bind required file textures to shader
-    void bindTextures(mx::ImageLoaderPtr imageLoader, mx::FilePath imagePath);
+    void bindTextures(mx::GLTextureHandlerPtr imageHandler, mx::FilePath imagePath);
 
     /// Return if the shader is has transparency
     bool hasTransparency() const { return _hasTransparency; }
@@ -57,7 +58,7 @@ class Material
     }
 
     // Acquire a texture. Return information in image description
-    bool acquireTexture(const std::string& filename, mx::ImageLoaderPtr imageLoader, mx::ImageDesc& desc);
+    bool acquireTexture(const std::string& filename, mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc);
 
     GLShaderPtr _ngShader;
     mx::HwShaderPtr _mxShader;

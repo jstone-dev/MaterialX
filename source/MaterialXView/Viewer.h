@@ -77,7 +77,8 @@ class Viewer : public ng::Screen
     ng::Window* _propertySheetWindow;
     bool _showNonEditableInputs;
 
-    mx::ImageLoaderPtr _imageLoader;
+    mx::ImageLoaderPtr _exrImageLoader;
+    mx::GLTextureHandlerPtr _imageHandler;
 };
 
 #endif // MATERIALXVIEW_VIEWER_H
