@@ -370,6 +370,13 @@ Viewer::Viewer() :
     try
     {
         loadDocument(_materialFilename, _materialDocument, _stdLib, _elementSelections);
+    }
+    catch (std::exception& e)
+    {
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to load document", e.what());
+    }
+    try
+    {
         _elementSelectionIndex = _elementSelections.size() ? 0 : -1;
         updateElementSelections();
         setElementSelection(_elementSelectionIndex);
@@ -429,9 +436,16 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     }
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
     {
-        try 
+        try
         {
             loadDocument(_materialFilename, _materialDocument, _stdLib, _elementSelections);
+        }
+        catch (std::exception& e)
+        {
+            new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to load document", e.what());
+        }
+        try
+        {
             _elementSelectionIndex = _elementSelections.size() ? 0 : -1;
             updateElementSelections();
             updatePropertySheet();
@@ -510,6 +524,10 @@ void Viewer::drawContents()
     {
         return;
     }
+
+    static int val = 0;
+    std::cout << "my update contents" << std::to_string(val) << "\n";
+    val++;
 
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);

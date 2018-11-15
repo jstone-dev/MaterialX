@@ -10,7 +10,7 @@ int main()
         {
             ng::ref<Viewer> viewer = new Viewer();
             viewer->setVisible(true);
-            ng::mainloop();
+            ng::mainloop(-1);
         }
     
         ng::shutdown();
