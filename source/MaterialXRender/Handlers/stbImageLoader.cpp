@@ -3,7 +3,18 @@
 #if defined(OSWin_)
 #pragma warning( push )
 #pragma warning( disable: 4100)
+#pragma warning( disable: 4505)
+#elif defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 #endif
+
+// Make the functions static to avoid multiple definitions if other libraries
+// are also using stb
+#define STB_IMAGE_STATIC 1
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <MaterialXRender/External/stb/stb_image_write.h>
@@ -11,10 +22,18 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <MaterialXRender/External/stb/stb_image.h>
 
+#if defined(OSWin_)
+#pragma warning( pop ) 
+#elif defined(__clang__)
+#pragma clang diagnostic pop
+#else
+#pragma GCC diagnostic pop
+#endif
+
 #include <MaterialXRender/Handlers/stbImageLoader.h>
 
 namespace MaterialX
-{
+{    
 bool stbImageLoader::saveImage(const std::string& fileName,
                                     const ImageDesc& imageDesc)
 {
@@ -87,10 +106,6 @@ bool stbImageLoader::acquireImage(const std::string& fileName,
     }
     return (imageDesc.resourceBuffer != nullptr);
 }
-
-#if defined(OSWin_)
-#pragma warning( pop ) 
-#endif
 
 }
 

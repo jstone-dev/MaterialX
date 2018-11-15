@@ -7,7 +7,6 @@
 #include <MaterialXFormat/XmlIo.h>
 #include <MaterialXFormat/File.h>
 
-#include <MaterialXRender/Handlers/TinyExrImageLoader.h>
 #include <MaterialXRender/OpenGL/GLTextureHandler.h>
 #include <MaterialXGenShader/HwShader.h>
 

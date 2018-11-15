@@ -41,18 +41,11 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
         doc = mx::createDocument();
         mx::readFromXmlFile(doc, filePath);
         doc->importLibrary(stdLib);
-        std::string validationErrors;
-        bool validDoc = doc->validate(&validationErrors);
-        if (!validDoc)
-        {
-            throw std::exception("Document is cannot be validated");
-        }
     }
     catch (std::exception& e)
     {
         throw e;
     }
-
 
     std::vector<mx::NodeGraphPtr> nodeGraphs = doc->getNodeGraphs();
     std::vector<mx::OutputPtr> outputList = doc->getOutputs();
@@ -194,6 +187,10 @@ bool Material::acquireTexture(const std::string& filename, mx::GLTextureHandlerP
     {
         std::cerr << "Failed to load image: " << filename << std::endl;
         return false;
+    }
+    if (fileName != filename)
+    {
+        std::cerr << "Failed to load image: " << filename << std::endl;
     }
     return true;
 }

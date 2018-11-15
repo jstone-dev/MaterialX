@@ -10,6 +10,9 @@
 #include <fstream>
 #include <math.h>
 
+#include <MaterialXRender/Handlers/TinyExrImageLoader.h>
+#include <MaterialXRender/Handlers/stbImageLoader.h>
+
 const float PI = std::acos(-1.0f);
 
 const int MIN_ENV_SAMPLES = 16;
@@ -359,8 +362,10 @@ Viewer::Viewer() :
     _searchPath = _startPath / mx::FilePath("documents/Libraries");
     _materialFilename = std::string("documents/TestSuite/sxpbrlib/materials/standard_surface_default.mtlx");
 
-    _exrImageLoader = mx::TinyEXRImageLoader::create();
-    _imageHandler = mx::GLTextureHandler::create(_exrImageLoader);
+    mx::ImageLoaderPtr exrImageLoader = mx::TinyEXRImageLoader::create();
+    mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
+    _imageHandler = mx::GLTextureHandler::create(exrImageLoader);
+    _imageHandler->addLoader(stbImageLoader);
     loadLibraries({"stdlib", "sxpbrlib"}, _searchPath, _stdLib);
 
     _mesh = MeshPtr(new Mesh());
