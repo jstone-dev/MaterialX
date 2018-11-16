@@ -65,7 +65,7 @@ class Material
 };
 
 void loadLibraries(const mx::StringVec& libraryNames, const mx::FilePath& searchPath, mx::DocumentPtr doc);
-void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& document, mx::DocumentPtr stdLib, std::vector<mx::ElementPtr>& elements);
+void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& document, mx::DocumentPtr stdLib, std::vector<mx::TypedElementPtr>& elements);
 
 StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem);
 

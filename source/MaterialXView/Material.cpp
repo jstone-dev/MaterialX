@@ -32,7 +32,7 @@ void loadLibraries(const mx::StringVec& libraryNames, const mx::FilePath& search
     }
 }
 
-void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::DocumentPtr stdLib, std::vector<mx::ElementPtr>& elements)
+void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::DocumentPtr stdLib, std::vector<mx::TypedElementPtr>& elements)
 {
     elements.clear();
 
@@ -47,64 +47,8 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
         throw e;
     }
 
-    std::vector<mx::NodeGraphPtr> nodeGraphs = doc->getNodeGraphs();
-    std::vector<mx::OutputPtr> outputList = doc->getOutputs();
-    std::unordered_set<mx::OutputPtr> outputSet(outputList.begin(), outputList.end());
-    std::vector<mx::MaterialPtr> materials = doc->getMaterials();
-
-    if (!materials.empty() || !nodeGraphs.empty() || !outputList.empty())
-    {
-        std::unordered_set<mx::OutputPtr> shaderrefOutputs;
-        for (auto material : materials)
-        {
-            for (auto shaderRef : material->getShaderRefs())
-            {
-                if (!shaderRef->hasSourceUri())
-                {
-                    // Add in all shader references which are not part of a node definition library
-                    elements.push_back(shaderRef);
-
-                    // Find all bindinputs which reference outputs and outputgraphs
-                    for (auto bindInput : shaderRef->getBindInputs())
-                    {
-                        mx::OutputPtr outputPtr = bindInput->getConnectedOutput();
-                        if (outputPtr)
-                        {
-                            shaderrefOutputs.insert(outputPtr);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Find node graph outputs
-        for (mx::NodeGraphPtr nodeGraph : nodeGraphs)
-        {
-            // Skip anything from an include file including libraries.
-            if (!nodeGraph->hasSourceUri())
-            {
-                std::vector<mx::OutputPtr> nodeGraphOutputs = nodeGraph->getOutputs();
-                for (mx::OutputPtr output : nodeGraphOutputs)
-                {
-                    // We skip any outputs which are referenced elsewhere.
-                    if (shaderrefOutputs.count(output) == 0)
-                    {
-                        outputSet.insert(output);
-                    }
-                }
-            }
-        }
-
-        // Add ouptuts which are not part of library definitions
-        for (mx::OutputPtr output : outputSet)
-        {
-            // Skip anything from include files
-            if (!output->hasSourceUri())
-            {
-                elements.push_back(output);
-            }
-        }
-    }
+    // Scan for a list of elements which can be rendered
+    mx::findRenderableElements(doc, elements); 
 }
 
 StringPair generateSource(const mx::FilePath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem)
@@ -187,10 +131,6 @@ bool Material::acquireTexture(const std::string& filename, mx::GLTextureHandlerP
     {
         std::cerr << "Failed to load image: " << filename << std::endl;
         return false;
-    }
-    if (fileName != filename)
-    {
-        std::cerr << "Failed to load image: " << filename << std::endl;
     }
     return true;
 }

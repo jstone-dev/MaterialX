@@ -68,7 +68,7 @@ class Viewer : public ng::Screen
     mx::DocumentPtr _stdLib;
     mx::DocumentPtr _materialDocument;
 
-    std::vector<mx::ElementPtr> _elementSelections;
+    std::vector<mx::TypedElementPtr> _elementSelections;
     int _elementSelectionIndex;
     ng::ComboBox* _elementSelectionBox;
 
