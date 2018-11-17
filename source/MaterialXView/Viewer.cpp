@@ -530,10 +530,6 @@ void Viewer::drawContents()
         return;
     }
 
-    static int val = 0;
-    std::cout << "my update contents" << std::to_string(val) << "\n";
-    val++;
-
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
