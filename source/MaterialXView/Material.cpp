@@ -36,16 +36,9 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
 {
     elements.clear();
 
-    try
-    {
-        doc = mx::createDocument();
-        mx::readFromXmlFile(doc, filePath);
-        doc->importLibrary(stdLib);
-    }
-    catch (std::exception& e)
-    {
-        throw e;
-    }
+    doc = mx::createDocument();
+    mx::readFromXmlFile(doc, filePath);
+    doc->importLibrary(stdLib);
 
     // Scan for a list of elements which can be rendered
     mx::findRenderableElements(doc, elements); 
