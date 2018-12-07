@@ -330,6 +330,7 @@ void Viewer::drawContents()
     shader->bind();
 
     _material->bindViewInformation(world, view, proj);
+    _material->bindImages(_imageHandler, _searchPath);
     _material->bindLights(_imageHandler, _searchPath, _envSamples);
 
     glEnable(GL_DEPTH_TEST);
@@ -450,35 +451,44 @@ void Viewer::computeCameraMatrices(mx::Matrix44& world,
     world *= mx::Matrix44::createTranslation(_cameraParams.modelTranslation).getTranspose();
 }
 
-void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
+void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label, 
                             const std::string& path, mx::ValuePtr min, mx::ValuePtr max,
-                            const mx::StringVec& enumeration, ng::FormHelper& form)
+                            const mx::StringVec& enumeration, const std::vector<mx::ValuePtr> enumValues,
+                            ng::FormHelper& form)
 {
     if (!value)
     {
         return;
     }
+
     if (value->isA<int>())
     {
         int v = value->asA<int>();
 
-        // Create a comb box. The items are the enumerations in order.
+        // Create a combo box. The items are the enumerations in order.
         if (v < enumeration.size())
         {
             std::string enumValue = enumeration[v];
 
-            ng::ComboBox* comboBox = new ng::ComboBox(form.window(), { "" });
+            ng::ComboBox* comboBox = new ng::ComboBox(form.window(), {""});
             comboBox->setItems(enumeration);
             comboBox->setSelectedIndex(v);
             comboBox->setFontSize(form.widgetFontSize());
             form.addWidget(label, comboBox);
-            comboBox->setCallback([this, path](int v)
+            comboBox->setCallback([this, path, enumValues](int v)
             {
                 mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
                 if (uniform)
                 {
                     _material->ngShader()->bind();
-                    _material->ngShader()->setUniform(uniform->name, v);
+                    if (v < enumValues.size())
+                    {
+                        _material->ngShader()->setUniform(uniform->name, enumValues[v]->asA<int>());
+                    }
+                    else
+                    {
+                        _material->ngShader()->setUniform(uniform->name, v);
+                    }
                 }
             });
         }
@@ -549,27 +559,72 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
     }
     else if (value->isA<mx::Color3>())
     {
-        mx::Color3 v = value->asA<mx::Color3>();
-        ng::Color c;
-        c.r() = v[0];
-        c.g() = v[1];
-        c.b() = v[2];
-        c.w() = 1.0;
-        nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
-            form.addVariable(label, c, true);
-        colorVar->setFinalCallback([this, path](const ng::Color &c)
+        mx::Color3 color = value->asA<mx::Color3>();
+        int index = -1;
+
+        if (enumeration.size() && enumValues.size())
         {
-            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
-            if (uniform)
-            { 
-                _material->ngShader()->bind();
-                ng::Vector3f v;
-                v.x() = c.r();
-                v.y() = c.g();
-                v.z() = c.b();
-                _material->ngShader()->setUniform(uniform->name, v);
+            index = 0;
+            for (size_t i = 0; i < enumValues.size(); i++)
+            {
+                if (enumValues[i]->asA<mx::Color3>() == color)
+                {
+                    index = static_cast<int>(i);
+                    break;
+                }
             }
-        });
+        }
+
+        // Create a combo box. The items are the enumerations in order.
+        if (index >= 0)
+        {
+            ng::ComboBox* comboBox = new ng::ComboBox(form.window(), { "" });
+            comboBox->setItems(enumeration);
+            comboBox->setSelectedIndex(index);
+            comboBox->setFontSize(form.widgetFontSize());
+            form.addWidget(label, comboBox);
+            comboBox->setCallback([this, path, enumValues](int index)
+            {
+                mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+                if (uniform)
+                {
+                    _material->ngShader()->bind();
+                    if (index < enumValues.size())
+                    {
+                        mx::Color3 c = enumValues[index]->asA<mx::Color3>();
+                        ng::Vector3f v;
+                        v.x() = c[0];
+                        v.y() = c[1];
+                        v.z() = c[2];
+                        _material->ngShader()->setUniform(uniform->name, v);
+                    }
+                }
+            });
+        }
+        else
+        {
+            mx::Color3 v = value->asA<mx::Color3>();
+            ng::Color c;
+            c.r() = v[0];
+            c.g() = v[1];
+            c.b() = v[2];
+            c.w() = 1.0;
+            nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
+                form.addVariable(label, c, true);
+            colorVar->setFinalCallback([this, path](const ng::Color &c)
+            {
+                mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+                if (uniform)
+                {
+                    _material->ngShader()->bind();
+                    ng::Vector3f v;
+                    v.x() = c.r();
+                    v.y() = c.g();
+                    v.z() = c.b();
+                    _material->ngShader()->setUniform(uniform->name, v);
+                }
+            });
+        }
     }
     else if (value->isA<mx::Color4>())
     {
@@ -779,7 +834,8 @@ void Viewer::updatePropertySheet()
                             label = parentLabel + uniformElement->getName();
                         }
 
-                        addValueToForm(uniform->value, label, uniform->path, ui.uiMin, ui.uiMax, ui.enumeration, *_propertySheet);
+                        addValueToForm(uniform->value, label, uniform->path, ui.uiMin, ui.uiMax, 
+                                       ui.enumeration, ui.enumerationValues, *_propertySheet);
                     }
                 }
             }
