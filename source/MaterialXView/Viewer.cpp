@@ -726,7 +726,13 @@ void Viewer::updatePropertySheet()
                     mx::ElementPtr uniformElement = _materialDocument->getDescendant(uniform->path);
                     if (uniformElement && uniformElement->isA<mx::ValueElement>())
                     {
-                        addValueToForm(uniform->value, uniformElement->getName(), uniform->path, *_propertySheet);
+                        std::string label = uniformElement->getName();
+                        mx::ElementPtr parent = uniformElement->getParent();
+                        if (parent && parent != _materialDocument && parent != element)
+                        {
+                            label = uniformElement->getNamePath();
+                        }
+                        addValueToForm(uniform->value, label, uniform->path, *_propertySheet);
                     }
                 }
             }
