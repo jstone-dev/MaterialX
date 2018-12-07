@@ -49,8 +49,9 @@ class Viewer : public ng::Screen
     bool setElementSelection(int index);
     void updateElementSelections();
     void updatePropertySheet();
-    void addValueToForm(mx::ValuePtr value, const std::string& label,
-        const std::string& path, ng::FormHelper& form);
+    void addValueToForm(mx::ValuePtr value, const std::string& label, const std::string& path, 
+                        mx::ValuePtr min, mx::ValuePtr max, const mx::StringVec& enumeration,
+                        ng::FormHelper& form);
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;

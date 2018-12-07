@@ -9,6 +9,7 @@
 #include <iostream>
 #include <fstream>
 
+#include <MaterialXGenShader/Util.h>
 #include <MaterialXRender/Handlers/stbImageLoader.h>
 #include <MaterialXRender/Handlers/TinyExrImageLoader.h>
 
@@ -450,7 +451,8 @@ void Viewer::computeCameraMatrices(mx::Matrix44& world,
 }
 
 void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
-    const std::string& path, ng::FormHelper& form)
+                            const std::string& path, mx::ValuePtr min, mx::ValuePtr max,
+                            const mx::StringVec& enumeration, ng::FormHelper& form)
 {
     if (!value)
     {
@@ -459,12 +461,18 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
     if (value->isA<int>())
     {
         int v = value->asA<int>();
-        nanogui::detail::FormWidget<int, std::true_type>* intVar =
-            form.addVariable(label, v, true);
-        intVar->setSpinnable(true);
-        intVar->setCallback([this, path](int v)
+
+        // Create a comb box. The items are the enumerations in order.
+        if (v < enumeration.size())
         {
-            if (_material)
+            std::string enumValue = enumeration[v];
+
+            ng::ComboBox* comboBox = new ng::ComboBox(form.window(), { "" });
+            comboBox->setItems(enumeration);
+            comboBox->setSelectedIndex(v);
+            comboBox->setFontSize(form.widgetFontSize());
+            form.addWidget(label, comboBox);
+            comboBox->setCallback([this, path](int v)
             {
                 mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
                 if (uniform)
@@ -472,8 +480,26 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                     _material->ngShader()->bind();
                     _material->ngShader()->setUniform(uniform->name, v);
                 }
-            }
-        });
+            });
+        }
+        else
+        {
+            nanogui::detail::FormWidget<int, std::true_type>* intVar =
+                form.addVariable(label, v, true);
+            intVar->setSpinnable(true);
+            intVar->setCallback([this, path](int v)
+            {
+                if (_material)
+                {
+                    mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+                    if (uniform)
+                    {
+                        _material->ngShader()->bind();
+                        _material->ngShader()->setUniform(uniform->name, v);
+                    }
+                }
+            });
+        }
     }
     else if (value->isA<float>())
     {
@@ -481,6 +507,10 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
         nanogui::detail::FormWidget<float, std::true_type>* floatVar =
             form.addVariable(label, v, true);
         floatVar->setSpinnable(true);
+        if (min)
+            floatVar->setMinValue(min->asA<float>());
+        if (max)
+            floatVar->setMaxValue(max->asA<float>());
         floatVar->setCallback([this, path](float v)
         {
             if (_material)
@@ -659,11 +689,6 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                         _material->ngShader()->bind();
                         _material->bindImage(filename, uniformName, _imageHandler, desc);
                     }
-                    else
-                    {
-                        // TO-DO: Need remapping information from string to integer which is currently
-                        // not available. 
-                    }
                 }   
             });
         }
@@ -726,13 +751,35 @@ void Viewer::updatePropertySheet()
                     mx::ElementPtr uniformElement = _materialDocument->getDescendant(uniform->path);
                     if (uniformElement && uniformElement->isA<mx::ValueElement>())
                     {
-                        std::string label = uniformElement->getName();
+                        std::string label;
+
+                        std::string parentLabel;
                         mx::ElementPtr parent = uniformElement->getParent();
                         if (parent && parent != _materialDocument && parent != element)
                         {
-                            label = uniformElement->getNamePath();
+                            parentLabel = parent->getNamePath();
                         }
-                        addValueToForm(uniform->value, label, uniform->path, *_propertySheet);
+                        if (parentLabel == element->getAttribute("nodename"))
+                        {
+                            parentLabel.clear();
+                        }
+                        if (!parentLabel.empty())
+                        {
+                            parentLabel += ":";
+                        }
+                        const std::string target("sx - glsl");
+                        mx::UIProperties ui;
+                        mx::getUIProperties(uniform->path, _materialDocument, target, ui);
+                        if (!ui.uiName.empty())
+                        {
+                            label = parentLabel + ui.uiName;
+                        }                        
+                        if (label.empty())
+                        {
+                            label = parentLabel + uniformElement->getName();
+                        }
+
+                        addValueToForm(uniform->value, label, uniform->path, ui.uiMin, ui.uiMax, ui.enumeration, *_propertySheet);
                     }
                 }
             }
