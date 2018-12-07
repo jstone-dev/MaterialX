@@ -822,7 +822,7 @@ void Viewer::updatePropertySheet()
                         {
                             parentLabel += ":";
                         }
-                        const std::string target("sx - glsl");
+                        const std::string target("sx-glsl");
                         mx::UIProperties ui;
                         mx::getUIProperties(uniform->path, _materialDocument, target, ui);
                         if (!ui.uiName.empty())
