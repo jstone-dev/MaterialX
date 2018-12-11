@@ -553,11 +553,11 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
         mx::Color2 v = value->asA<mx::Color2>();
         ng::Color c;
         c.r() = v[0];
-        c.g() = 0.0f;
+        c.g() = v[1];
         c.b() = 0.0f;
-        c.w() = v[1];
+        c.w() = 1.0f;
         nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
-            form.addVariable(label, c, false);
+            form.addVariable(label, c, true);
         colorVar->setFinalCallback([this, path](const ng::Color &c)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
