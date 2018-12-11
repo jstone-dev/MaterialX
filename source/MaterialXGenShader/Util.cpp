@@ -415,7 +415,7 @@ bool isTransparentSurface(ElementPtr element, const ShaderGenerator& shadergen)
                 {
                     // Unconnected, check the value
                     ValuePtr value = opacity->getValue();
-                    if (!value || (value->isA<Color3>() && isWhite(value->asA<Color3>())))
+                    if (!value || isWhite(value->asA<Color3>()))
                     {
                         opaque = true;
                     }
@@ -608,7 +608,6 @@ void findRenderableElements(const DocumentPtr& doc, std::vector<TypedElementPtr>
     }
 }
 
-
 ValueElementPtr findNodeDefChild(const string& path, DocumentPtr doc, const string& target)
 {
     if (path.empty() || !doc)
@@ -686,7 +685,7 @@ unsigned int getUIProperties(const ValueElementPtr nodeDefElement, UIProperties&
         {
             const string& elemType = nodeDefElement->getType();
             const TypeDesc* typeDesc = TypeDesc::get(elemType);
-            if (typeDesc->isScalar() || typeDesc->isFloat2() || typeDesc->isFloat3() ||
+            if (typeDesc->isScalar() || typeDesc->isFloat2() || typeDesc->isFloat3() || 
                 typeDesc->isFloat4())
             {
                 StringVec stringValues = splitString(enumerationValues, ",");
@@ -697,7 +696,7 @@ unsigned int getUIProperties(const ValueElementPtr nodeDefElement, UIProperties&
                 for (size_t i = 0; i < stringValues.size(); i++)
                 {
                     if (count == elementCount)
-                    {
+                    { 
                         valueString += stringValues[i];
                         uiProperties.enumerationValues.push_back(Value::createValueFromStrings(valueString, elemType));
                         valueString.clear();
