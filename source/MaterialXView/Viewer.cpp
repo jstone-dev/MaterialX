@@ -461,6 +461,7 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
         return;
     }
 
+    // Integer widget
     if (value->isA<int>())
     {
         int v = value->asA<int>();
@@ -511,6 +512,8 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
             });
         }
     }
+
+    // Float widget
     else if (value->isA<float>())
     {
         float v = value->asA<float>();
@@ -534,6 +537,8 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
             }
         });
     }
+
+    // Color 2 widget
     else if (value->isA<mx::Color2>())
     {
         mx::Color2 v = value->asA<mx::Color2>();
@@ -557,11 +562,13 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
             }
         });
     }
+
+    // Color 3 widget
     else if (value->isA<mx::Color3>())
     {
+        // Determine if there is an enumeration for this
         mx::Color3 color = value->asA<mx::Color3>();
         int index = -1;
-
         if (enumeration.size() && enumValues.size())
         {
             index = 0;
@@ -626,6 +633,8 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
             });
         }
     }
+
+    // Color4 widget
     else if (value->isA<mx::Color4>())
     {
         mx::Color4 v = value->asA<mx::Color4>();
@@ -651,78 +660,170 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
             }
         });
     }
+
+    // Vec 2 widget
     else if (value->isA<mx::Vector2>())
     {
         mx::Vector2 v = value->asA<mx::Vector2>();
-        ng::Color c;
-        c.r() = v[0];
-        c.g() = v[1];
-        c.b() = 0.0f;
-        c.w() = 1.0f;
-        nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
-            form.addVariable(label, c, true);
-        colorVar->setFinalCallback([this, path](const ng::Color &c)
+        nanogui::detail::FormWidget<float, std::true_type>* v1 =
+            form.addVariable(label + ".x", v[0], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v2 =
+            form.addVariable(label + ".y", v[1], true);
+        v1->setCallback([this, v1, v2, path](float f)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
             if (uniform)
             {
                 _material->ngShader()->bind();
                 ng::Vector2f v;
-                v.x() = c.r();
-                v.y() = c.g();
+                v.x() = f;
+                v.y() = v2->value();
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v2->setCallback([this, v1, v2, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector2f v;
+                v.x() = v1->value();
+                v.y() = f;
                 _material->ngShader()->setUniform(uniform->name, v);
             }
         });
     }
+
+    // Vec 3 widget
     else if (value->isA<mx::Vector3>())
     {
         mx::Vector3 v = value->asA<mx::Vector3>();
-        ng::Color c;
-        c.r() = v[0];
-        c.g() = v[1];
-        c.b() = v[2];
-        c.w() = 1.0;
-        nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
-            form.addVariable(label, c, true);
-        colorVar->setFinalCallback([this, path](const ng::Color &c)
+        nanogui::detail::FormWidget<float, std::true_type>* v1 = 
+            form.addVariable(label + ".x", v[0], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v2 =
+            form.addVariable(label + ".y", v[1], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v3 =
+            form.addVariable(label + ".z", v[2], true);
+        v1->setCallback([this, v1, v2, v3, path](float f)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
             if (uniform)
             {
                 _material->ngShader()->bind();
                 ng::Vector3f v;
-                v.x() = c.r();
-                v.y() = c.g();
-                v.z() = c.b();
+                v.x() = f;
+                v.y() = v2->value();
+                v.z() = v3->value();
                 _material->ngShader()->setUniform(uniform->name, v);
             }
         });
+        v1->setSpinnable(true);
+        v2->setCallback([this, v1, v2, v3, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector3f v;
+                v.x() = v1->value();
+                v.y() = f;
+                v.z() = v3->value();
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v2->setSpinnable(true);
+        v3->setCallback([this, v1, v2, v3, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector3f v;
+                v.x() = v1->value();
+                v.y() = v2->value();
+                v.z() = f;
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v3->setSpinnable(true);
     }
+
+    // Vec 4 widget
     else if (value->isA<mx::Vector4>())
     {
         mx::Vector4 v = value->asA<mx::Vector4>();
-        ng::Color c;
-        c.r() = v[0];
-        c.g() = v[1];
-        c.b() = v[2];
-        c.w() = v[3];
-        nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
-            form.addVariable(label, c, true);
-        colorVar->setFinalCallback([this, path](const ng::Color &c)
+        nanogui::detail::FormWidget<float, std::true_type>* v1 =
+            form.addVariable(label + ".x", v[0], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v2 =
+            form.addVariable(label + ".y", v[1], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v3 =
+            form.addVariable(label + ".z", v[2], true);
+        nanogui::detail::FormWidget<float, std::true_type>* v4 =
+            form.addVariable(label + ".w", v[3], true);
+        v1->setCallback([this, v1, v2, v3, v4, path](float f)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
             if (uniform)
             {
                 _material->ngShader()->bind();
                 ng::Vector4f v;
-                v.x() = c.r();
-                v.y() = c.g();
-                v.z() = c.b();
-                v.w() = c.w();
+                v.x() = f;
+                v.y() = v2->value();
+                v.z() = v3->value();
+                v.w() = v4->value();
                 _material->ngShader()->setUniform(uniform->name, v);
             }
         });
+        v1->setSpinnable(true);
+        v2->setCallback([this, v1, v2, v3, v4, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector4f v;
+                v.x() = v1->value();
+                v.y() = f;
+                v.z() = v3->value();
+                v.w() = v4->value();
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v2->setSpinnable(true);
+        v3->setCallback([this, v1, v2, v3, v4, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector4f v;
+                v.x() = v1->value();
+                v.y() = v2->value();
+                v.z() = f;
+                v.w() = v4->value();
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v3->setSpinnable(true);
+        v4->setCallback([this, v1, v2, v3, v4, path](float f)
+        {
+            mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
+            if (uniform)
+            {
+                _material->ngShader()->bind();
+                ng::Vector4f v;
+                v.x() = v1->value();
+                v.y() = v2->value();
+                v.z() = v3->value();
+                v.w() = f;
+                _material->ngShader()->setUniform(uniform->name, v);
+            }
+        });
+        v4->setSpinnable(true);
     }
+
+    // String widget
     else if (value->isA<std::string>())
     {
         std::string v = value->asA<std::string>();
@@ -743,6 +844,10 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                         uniform->value = mx::Value::createValue<std::string>(filename);
                         _material->ngShader()->bind();
                         _material->bindImage(filename, uniformName, _imageHandler, desc);
+                    }
+                    else
+                    {
+                        uniform->value = mx::Value::createValue<std::string>(v);
                     }
                 }   
             });
