@@ -45,6 +45,28 @@ void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr& doc, mx::Docume
     mx::findRenderableElements(doc, elements); 
 }
 
+void remapNodes(mx::DocumentPtr& doc, const mx::StringMap& nodeRemap)
+{
+    for (mx::ElementPtr elem : doc->traverseTree())
+    {
+        mx::NodePtr node = elem->asA<mx::Node>();
+        mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
+        if (node && nodeRemap.count(node->getCategory()))
+        {
+            node->setCategory(nodeRemap.at(node->getCategory()));
+        }
+        if (shaderRef)
+        {
+            mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
+            if (nodeDef && nodeRemap.count(nodeDef->getNodeString()))
+            {
+                shaderRef->setNodeString(nodeRemap.at(nodeDef->getNodeString()));
+                shaderRef->removeAttribute(mx::ShaderRef::NODE_DEF_ATTRIBUTE);
+            }
+        }
+    }
+}
+
 StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem)
 {  
     if (!elem)

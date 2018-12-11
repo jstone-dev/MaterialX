@@ -30,7 +30,9 @@ class CameraParameters
 class Viewer : public ng::Screen
 {
   public:
-    Viewer(const mx::StringVec& libraryFolders, const mx::FileSearchPath& searchPath);
+    Viewer(const mx::StringVec& libraryFolders,
+           const mx::FileSearchPath& searchPath,
+           const mx::StringMap& nodeRemap);
     ~Viewer() { }
 
     void drawContents() override;
@@ -41,7 +43,7 @@ class Viewer : public ng::Screen
     bool mouseButtonEvent(const ng::Vector2i& p, int button, bool down, int modifiers) override;
   
   private:
-    void recenterCamera();
+    void initCamera();
     void computeCameraMatrices(mx::Matrix44& world,
                                mx::Matrix44& view,
                                mx::Matrix44& proj);
@@ -51,6 +53,7 @@ class Viewer : public ng::Screen
     void updatePropertySheet();
     void addValueToForm(mx::ValuePtr value, const std::string& label,
         const std::string& path, ng::FormHelper& form);
+
   private:
     ng::Window* _window;
     std::unique_ptr<Mesh> _mesh;
@@ -62,6 +65,8 @@ class Viewer : public ng::Screen
 
     mx::StringVec _libraryFolders;
     mx::FileSearchPath _searchPath;
+    mx::StringMap _nodeRemap;
+
     mx::FilePath _materialFilename;
     int _envSamples;
 
