@@ -53,8 +53,6 @@ void writeTextFile(const std::string& text, const std::string& filePath)
     file << text;
     file.close();
 }
- 
-
 
 } // anonymous namespace
 
@@ -62,10 +60,13 @@ void writeTextFile(const std::string& text, const std::string& filePath)
 // Viewer methods
 //
 
-Viewer::Viewer(const mx::StringVec& libraryFolders, const mx::FileSearchPath& searchPath) :
+Viewer::Viewer(const mx::StringVec& libraryFolders,
+               const mx::FileSearchPath& searchPath,
+               const mx::StringMap& nodeRemap) :
     ng::Screen(ng::Vector2i(1280, 960), "MaterialXView"),
     _libraryFolders(libraryFolders),
     _searchPath(searchPath),
+    _nodeRemap(nodeRemap),
     _translationActive(false),
     _translationStart(0, 0),
     _envSamples(MIN_ENV_SAMPLES)
@@ -88,7 +89,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders, const mx::FileSearchPath& se
                 {
                     _material->bindMesh(_mesh);
                 }
-                recenterCamera();
+                initCamera();
             }
             else
             {
@@ -110,6 +111,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders, const mx::FileSearchPath& se
             try
             {
                 loadDocument(_materialFilename, _materialDocument, _stdLib, _elementSelections);
+                remapNodes(_materialDocument, _nodeRemap);
                 updateElementSelections();
                 setElementSelection(0);
                 updatePropertySheet();
@@ -164,11 +166,17 @@ Viewer::Viewer(const mx::StringVec& libraryFolders, const mx::FileSearchPath& se
 
     _mesh = MeshPtr(new Mesh());
     _mesh->loadMesh("documents/TestSuite/Geometry/teapot.obj");
-    recenterCamera();
+    initCamera();
+
+    setResizeCallback([this](ng::Vector2i size)
+    {
+        _cameraParams.arcball.setSize(size);
+    });
 
     try
     {
         loadDocument(_materialFilename, _materialDocument, _stdLib, _elementSelections);
+        remapNodes(_materialDocument, _nodeRemap);
     }
     catch (std::exception& e)
     {
@@ -239,6 +247,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         try
         {
             loadDocument(_materialFilename, _materialDocument, _stdLib, _elementSelections);
+            remapNodes(_materialDocument, _nodeRemap);
         }
         catch (std::exception& e)
         {
@@ -427,7 +436,7 @@ bool Viewer::mouseButtonEvent(const ng::Vector2i& p, int button, bool down, int 
     return true;
 }
 
-void Viewer::recenterCamera()
+void Viewer::initCamera()
 {
     _cameraParams.arcball = ng::Arcball();
     _cameraParams.arcball.setSize(mSize);
@@ -681,6 +690,7 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                 _material->ngShader()->setUniform(uniform->name, v);
             }
         });
+        v1->setSpinnable(true);
         v2->setCallback([this, v1, v2, path](float f)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
@@ -693,6 +703,7 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                 _material->ngShader()->setUniform(uniform->name, v);
             }
         });
+        v2->setSpinnable(true);
     }
 
     // Vec 3 widget

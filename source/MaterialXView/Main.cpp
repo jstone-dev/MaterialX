@@ -12,17 +12,26 @@ int main(int argc, char* const argv[])
 
     mx::StringVec libraryFolders = { "stdlib", "sxpbrlib" };
     mx::FileSearchPath searchPath;
+    mx::StringMap nodeRemap;
     for (int i = 0; i < tokens.size(); i++)
     {
         const std::string& token = tokens[i];
         const std::string& nextToken = i + 1 < tokens.size() ? tokens[i + 1] : mx::EMPTY_STRING;
-        if (token == "-l" && !nextToken.empty())
+        if (token == "--library" && !nextToken.empty())
         {
             libraryFolders.push_back(nextToken);
         }
-        if (token == "-s" && !nextToken.empty())
+        if (token == "--path" && !nextToken.empty())
         {
             searchPath = mx::FileSearchPath(nextToken);
+        }
+        if (token == "--remap" && !nextToken.empty())
+        {
+            mx::StringVec vec = mx::splitString(nextToken, ":");
+            if (vec.size() == 2)
+            {
+                nodeRemap[vec[0]] = vec[1];
+            }
         }
     }
     searchPath.append(mx::FilePath::getCurrentPath() / mx::FilePath("documents/Libraries"));
@@ -31,7 +40,7 @@ int main(int argc, char* const argv[])
     {
         ng::init();
         {
-            ng::ref<Viewer> viewer = new Viewer(libraryFolders, searchPath);
+            ng::ref<Viewer> viewer = new Viewer(libraryFolders, searchPath, nodeRemap);
             viewer->setVisible(true);
             ng::mainloop(-1);
         }
