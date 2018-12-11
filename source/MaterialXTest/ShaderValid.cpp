@@ -600,8 +600,51 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
                 if (testOptions.dumpGlslUniformsAndAttributes)
                 {
                     AdditiveScopedTimer printTimer(profileTimes.glslTimes.ioTime, "GLSL io time");
+                    log << "* Uniform:" << std::endl;
                     program->printUniforms(log);
+                    log << "* Attributes:" << std::endl;
                     program->printAttributes(log);
+                    
+                    log << "* Uniform UI Properties:" << std::endl;
+                    const std::string& target = shaderGenerator.getTarget();
+                    const MaterialX::GlslProgram::InputMap& uniforms = program->getUniformsList();
+                    for (auto uniform : uniforms)
+                    {
+                        const std::string& path = uniform.second->path;
+                        if (path.empty())
+                        {
+                            continue;
+                        }
+
+                        mx::UIProperties uiProperties;
+                        if (getUIProperties(path, doc, target, uiProperties) > 0)
+                        {
+                            log << "Program Uniform: " << uniform.first << ". Path: " << path;
+                            if (!uiProperties.uiName.empty())
+                                log << ". UI Name: \"" << uiProperties.uiName << "\"";
+                            if (!uiProperties.uiFolder.empty())
+                                log << ". UI Folder: \"" << uiProperties.uiFolder << "\"";
+                            if (!uiProperties.enumeration.empty())
+                            {
+                                log << ". Enumeration: {";
+                                for (size_t i=0; i<uiProperties.enumeration.size(); i++)
+                                    log << uiProperties.enumeration[i] << " ";
+                                log << "}";
+                            }
+                            if (!uiProperties.enumerationValues.empty())
+                            {
+                                log << ". Enum Values: {";
+                                for (size_t i = 0; i < uiProperties.enumerationValues.size(); i++)
+                                    log << uiProperties.enumerationValues[i]->getValueString() << "; ";
+                                log << "}";
+                            }
+                            if (uiProperties.uiMin)
+                                log << ". UI Min: " << uiProperties.uiMin->getValueString();
+                            if (uiProperties.uiMax)
+                                log << ". UI Max: " << uiProperties.uiMax->getValueString();
+                            log << std::endl;
+                        }
+                    }
                 }
 
                 if (testOptions.renderImages)
@@ -849,7 +892,7 @@ bool getTestOptions(const std::string& optionFile, ShaderValidTestOptions& optio
                     else if (name == "checkImplCount")
                     {
                         options.checkImplCount = val->asA<bool>();
-                    }                    
+                    }
                     else if (name == "dumpGeneratedCode")
                     {
                         options.dumpGeneratedCode = val->asA<bool>();
@@ -1139,6 +1182,7 @@ TEST_CASE("MaterialX documents", "[shadervalid]")
 #ifdef MATERIALX_BUILD_GEN_OSL
     mx::OslValidatorPtr oslValidator = nullptr;
     mx::ArnoldShaderGeneratorPtr oslShaderGenerator = nullptr;
+    mx::DefaultColorManagementSystemPtr oslColorManagementSystem = nullptr;
     if (options.runOSLTests)
     {
         AdditiveScopedTimer oslSetupTime(profileTimes.oslTimes.setupTime, "OSL setup time");
@@ -1252,6 +1296,15 @@ TEST_CASE("MaterialX documents", "[shadervalid]")
                     glslColorManagementSystem->loadLibrary(dependLib);
                 }
 #endif
+#ifdef MATERIALX_BUILD_GEN_OSL
+                if ((options.runOSLTests) && !oslColorManagementSystem)
+                {
+                    oslColorManagementSystem = mx::DefaultColorManagementSystem::create(oslShaderGenerator->getLanguage());
+                    if (oslShaderGenerator)
+                        oslShaderGenerator->setColorManagementSystem(oslColorManagementSystem);
+                    oslColorManagementSystem->loadLibrary(dependLib);
+                }
+#endif
             }
             doc->importLibrary(dependLib, &importOptions);
             ioTimer.endTimer();
@@ -1342,11 +1395,6 @@ TEST_CASE("MaterialX documents", "[shadervalid]")
 #ifdef MATERIALX_BUILD_GEN_OSL
                     if (options.runOSLTests)
                     {
-                        // Skip files using CMS for OSL assuming there is no support available
-                        if (options.cmsFiles.size() && options.cmsFiles.count(file))
-                        {
-                            continue;
-                        }
                         renderableSearchTimer.startTimer();
                         mx::InterfaceElementPtr impl2 = nodeDef->getImplementation(oslShaderGenerator->getTarget(), oslShaderGenerator->getLanguage());
                         renderableSearchTimer.endTimer();
