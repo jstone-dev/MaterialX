@@ -1028,7 +1028,7 @@ void Viewer::updatePropertySheet()
                     (previousFolder == folder) ? mx::EMPTY_STRING : folder, *_propertySheet);
                 previousFolder.assign(folder);
             }
-            if (!groups.empty())
+            if (!groups.empty() && !unnamedGroups.empty())
             {
                 _propertySheet->addGroup("Other");
             }
