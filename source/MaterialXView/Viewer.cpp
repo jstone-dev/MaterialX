@@ -136,8 +136,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     propertySheetButton->setFlags(ng::Button::ToggleButton);
     propertySheetButton->setChangeCallback([this](bool state)
     { 
-        _showPropertySheet = state;
-        this->_propertySheetWindow->setVisible(_showPropertySheet);
+        this->_propertySheet.setVisible(state);
         performLayout();
     });
 
@@ -192,14 +191,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
     }
 
-    // By default hind inputs which cannot be edited. e.g. for a shader ref there may be a lot of inputs
-    // which have not been overridden and thus are just the defaults.
-    _showNonEditableInputs = false;
-    _propertySheet = nullptr;
-    _propertySheetWindow = nullptr;
-    _showPropertySheet = false; // Start up with property sheet hidden
     updatePropertySheet();
-
+    _propertySheet.setVisible(false);
     performLayout();
 }
 
@@ -277,7 +270,6 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
                     mx::HwShaderPtr hwShader = nullptr;
                     StringPair source = generateSource(_searchPath, hwShader, elem);
                     std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
-                    mx::StringVec splitName = mx::splitString(baseName, ".");
                     writeTextFile(source.first, _searchPath[0] / (baseName + "_vs.glsl"));
                     writeTextFile(source.second, _searchPath[0]  / (baseName + "_ps.glsl"));
                 }
@@ -875,172 +867,7 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
     }
 }
 
-// Logical item group
-struct PropertySheetItem
-{
-    std::string label;
-    mx::Shader::Variable* variable = nullptr;
-    mx::UIProperties ui;
-};
-// Use to sort by ui folder
-using PropertySheetGroups = std::multimap <std::string, PropertySheetItem>;
-
-class myFormHelper : public ng::FormHelper
-{
-public:
-    myFormHelper(ng::Screen *screen) : ng::FormHelper(screen)
-    {}
-
-    void setPreGroupSpacing(int val)
-    {
-        mPreGroupSpacing = val;
-    }
-
-    void setPostGroupSpacing(int val)
-    {
-        mPostGroupSpacing = val;
-    }
-
-    void setVariableSpacing(int val)
-    {
-        mVariableSpacing = val;
-    }
-};
-
 void Viewer::updatePropertySheet()
 {
-    if (!_propertySheet)
-    {
-        myFormHelper* sheet = new myFormHelper(this);
-        sheet->setPreGroupSpacing(2);
-        sheet->setPostGroupSpacing(2);
-        sheet->setVariableSpacing(2);
-        _propertySheet = sheet;
-    }
-   
-    // Remove the window associated with the form.
-    // This is done by explicitly creating and owning the window
-    // as opposed to having it being done by the form
-    ng::Vector2i previousPosition(15, _window->height() + 60);
-    if (_propertySheetWindow)
-    {
-        for (int i = 0; i < _propertySheetWindow->childCount(); i++)
-        {
-            _propertySheetWindow->removeChild(i);
-        }
-        // We don't want the property sheet to move when
-        // we update it's contents so cache any previous position
-        // to use when we create a new window.
-        previousPosition = _propertySheetWindow->position();
-        this->removeChild(_propertySheetWindow);
-    }
-    _propertySheetWindow = new ng::Window(this, "Property Sheet");
-    ng::AdvancedGridLayout* layout = new ng::AdvancedGridLayout({ 10, 0, 10, 0 }, {});
-    layout->setMargin(2);
-    layout->setColStretch(2, 0);
-    if (previousPosition.x() < 0)
-        previousPosition.x() = 0;
-    if (previousPosition.y() < 0)
-        previousPosition.y() = 0;
-    _propertySheetWindow->setPosition(previousPosition);
-    _propertySheetWindow->setVisible(_showPropertySheet);
-    _propertySheetWindow->setLayout(layout);
-    _propertySheet->setWindow(_propertySheetWindow);
-
-    mx::ElementPtr element = nullptr;
-    if (_elementSelectionIndex >= 0 && _elementSelectionIndex < _elementSelections.size())
-    {
-        element = _elementSelections[_elementSelectionIndex];
-    }
-    if (!element)
-    {
-        return;
-    }
-
-    if (_material && _materialDocument)
-    {
-        GLShaderPtr shader = _material->ngShader();
-        mx::HwShaderPtr hwShader = _material->mxShader();
-        if (hwShader && shader)
-        {
-            const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
-
-            PropertySheetGroups groups;
-            PropertySheetGroups unnamedGroups;
-            for (auto uniform : publicUniforms.variableOrder)
-            {
-                if (uniform->path.size() && uniform->value)
-                {
-                    mx::ElementPtr uniformElement = _materialDocument->getDescendant(uniform->path);
-                    if (uniformElement && uniformElement->isA<mx::ValueElement>())
-                    {
-                        PropertySheetItem item;
-                        item.variable = uniform;
-                        mx::getUIProperties(uniform->path, _materialDocument, mx::EMPTY_STRING, item.ui);
-
-                        std::string parentLabel;
-                        mx::ElementPtr parent = uniformElement->getParent();
-                        if (parent && parent != _materialDocument && parent != element)
-                        {
-                            parentLabel = parent->getNamePath();
-                        }
-                        if (parentLabel == element->getAttribute(mx::PortElement::NODE_NAME_ATTRIBUTE))
-                        {
-                            parentLabel.clear();
-                        }
-                        if (!parentLabel.empty())
-                        {
-                            parentLabel += ":";
-                        }
-
-                        if (!item.ui.uiName.empty())
-                        {
-                            item.label = parentLabel + item.ui.uiName;
-                        }
-                        if (item.label.empty())
-                        {
-                            item.label = parentLabel + uniformElement->getName();
-                        }
-
-                        if (!item.ui.uiFolder.empty())
-                        {
-                            groups.insert(std::pair<std::string, PropertySheetItem>
-                                          (item.ui.uiFolder, item));
-                        }
-                        else
-                        {
-                            unnamedGroups.insert(std::pair<std::string, PropertySheetItem>
-                                                 (mx::EMPTY_STRING, item));
-                        }
-                    }
-                }
-            }                       
-
-            std::string previousFolder;
-            for (auto it = groups.begin(); it != groups.end(); ++it)
-            {
-                const std::string& folder = it->first;
-                const PropertySheetItem& pitem = it->second;
-                const mx::UIProperties& ui = pitem.ui;
-
-                addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
-                    ui.enumeration, ui.enumerationValues,
-                    (previousFolder == folder) ? mx::EMPTY_STRING : folder, *_propertySheet);
-                previousFolder.assign(folder);
-            }
-            if (!groups.empty() && !unnamedGroups.empty())
-            {
-                _propertySheet->addGroup("Other");
-            }
-            for (auto it2 = unnamedGroups.begin(); it2 != unnamedGroups.end(); ++it2)
-            {
-                const PropertySheetItem& pitem = it2->second;
-                const mx::UIProperties& ui = pitem.ui;
-
-                addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
-                    ui.enumeration, ui.enumerationValues, mx::EMPTY_STRING, *_propertySheet);
-            }
-        }
-    }
-    performLayout();
+    _propertySheet.updateContents(this);
 }
