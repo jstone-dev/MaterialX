@@ -463,11 +463,16 @@ void Viewer::computeCameraMatrices(mx::Matrix44& world,
 void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label, 
                             const std::string& path, mx::ValuePtr min, mx::ValuePtr max,
                             const mx::StringVec& enumeration, const std::vector<mx::ValuePtr> enumValues,
-                            ng::FormHelper& form)
+                            const std::string& group, ng::FormHelper& form)
 {
     if (!value)
     {
         return;
+    }
+
+    if (!group.empty())
+    {
+        form.addGroup(group);
     }
 
     // Integer widget
@@ -558,7 +563,7 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
         c.w() = 1.0f;
         nanogui::detail::FormWidget<nanogui::Color, std::true_type>* colorVar =
             form.addVariable(label, c, true);
-        colorVar->setFinalCallback([this, path](const ng::Color &c)
+        colorVar->setFinalCallback([this, path, colorVar](const ng::Color &c)
         {
             mx::Shader::Variable* uniform = _material ? _material->findUniform(path) : nullptr;
             if (uniform)
@@ -568,6 +573,10 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
                 v.x() = c.r();
                 v.y() = c.g();
                 _material->ngShader()->setUniform(uniform->name, v);
+                ng::Color c2 = c;
+                c2.b() = 0.0f;
+                c2.w() = 1.0f;
+                colorVar->setValue(c2);
             }
         });
     }
@@ -866,11 +875,47 @@ void Viewer::addValueToForm(mx::ValuePtr value, const std::string& label,
     }
 }
 
+// Logical item group
+struct PropertySheetItem
+{
+    std::string label;
+    mx::Shader::Variable* variable = nullptr;
+    mx::UIProperties ui;
+};
+// Use to sort by ui folder
+using PropertySheetGroups = std::multimap <std::string, PropertySheetItem>;
+
+class myFormHelper : public ng::FormHelper
+{
+public:
+    myFormHelper(ng::Screen *screen) : ng::FormHelper(screen)
+    {}
+
+    void setPreGroupSpacing(int val)
+    {
+        mPreGroupSpacing = val;
+    }
+
+    void setPostGroupSpacing(int val)
+    {
+        mPostGroupSpacing = val;
+    }
+
+    void setVariableSpacing(int val)
+    {
+        mVariableSpacing = val;
+    }
+};
+
 void Viewer::updatePropertySheet()
 {
     if (!_propertySheet)
     {
-        _propertySheet = new ng::FormHelper(this);
+        myFormHelper* sheet = new myFormHelper(this);
+        sheet->setPreGroupSpacing(2);
+        sheet->setPostGroupSpacing(2);
+        sheet->setVariableSpacing(2);
+        _propertySheet = sheet;
     }
    
     // Remove the window associated with the form.
@@ -891,8 +936,12 @@ void Viewer::updatePropertySheet()
     }
     _propertySheetWindow = new ng::Window(this, "Property Sheet");
     ng::AdvancedGridLayout* layout = new ng::AdvancedGridLayout({ 10, 0, 10, 0 }, {});
-    layout->setMargin(10);
-    layout->setColStretch(2, 1);
+    layout->setMargin(2);
+    layout->setColStretch(2, 0);
+    if (previousPosition.x() < 0)
+        previousPosition.x() = 0;
+    if (previousPosition.y() < 0)
+        previousPosition.y() = 0;
     _propertySheetWindow->setPosition(previousPosition);
     _propertySheetWindow->setVisible(_showPropertySheet);
     _propertySheetWindow->setLayout(layout);
@@ -915,6 +964,9 @@ void Viewer::updatePropertySheet()
         if (hwShader && shader)
         {
             const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+
+            PropertySheetGroups groups;
+            PropertySheetGroups unnamedGroups;
             for (auto uniform : publicUniforms.variableOrder)
             {
                 if (uniform->path.size() && uniform->value)
@@ -922,7 +974,9 @@ void Viewer::updatePropertySheet()
                     mx::ElementPtr uniformElement = _materialDocument->getDescendant(uniform->path);
                     if (uniformElement && uniformElement->isA<mx::ValueElement>())
                     {
-                        std::string label;
+                        PropertySheetItem item;
+                        item.variable = uniform;
+                        mx::getUIProperties(uniform->path, _materialDocument, mx::EMPTY_STRING, item.ui);
 
                         std::string parentLabel;
                         mx::ElementPtr parent = uniformElement->getParent();
@@ -930,7 +984,7 @@ void Viewer::updatePropertySheet()
                         {
                             parentLabel = parent->getNamePath();
                         }
-                        if (parentLabel == element->getAttribute("nodename"))
+                        if (parentLabel == element->getAttribute(mx::PortElement::NODE_NAME_ATTRIBUTE))
                         {
                             parentLabel.clear();
                         }
@@ -938,22 +992,53 @@ void Viewer::updatePropertySheet()
                         {
                             parentLabel += ":";
                         }
-                        const std::string target("sx-glsl");
-                        mx::UIProperties ui;
-                        mx::getUIProperties(uniform->path, _materialDocument, target, ui);
-                        if (!ui.uiName.empty())
+
+                        if (!item.ui.uiName.empty())
                         {
-                            label = parentLabel + ui.uiName;
-                        }                        
-                        if (label.empty())
+                            item.label = parentLabel + item.ui.uiName;
+                        }
+                        if (item.label.empty())
                         {
-                            label = parentLabel + uniformElement->getName();
+                            item.label = parentLabel + uniformElement->getName();
                         }
 
-                        addValueToForm(uniform->value, label, uniform->path, ui.uiMin, ui.uiMax, 
-                                       ui.enumeration, ui.enumerationValues, *_propertySheet);
+                        if (!item.ui.uiFolder.empty())
+                        {
+                            groups.insert(std::pair<std::string, PropertySheetItem>
+                                          (item.ui.uiFolder, item));
+                        }
+                        else
+                        {
+                            unnamedGroups.insert(std::pair<std::string, PropertySheetItem>
+                                                 (mx::EMPTY_STRING, item));
+                        }
                     }
                 }
+            }                       
+
+            std::string previousFolder;
+            for (auto it = groups.begin(); it != groups.end(); ++it)
+            {
+                const std::string& folder = it->first;
+                const PropertySheetItem& pitem = it->second;
+                const mx::UIProperties& ui = pitem.ui;
+
+                addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
+                    ui.enumeration, ui.enumerationValues,
+                    (previousFolder == folder) ? mx::EMPTY_STRING : folder, *_propertySheet);
+                previousFolder.assign(folder);
+            }
+            if (!groups.empty())
+            {
+                _propertySheet->addGroup("Other");
+            }
+            for (auto it2 = unnamedGroups.begin(); it2 != unnamedGroups.end(); ++it2)
+            {
+                const PropertySheetItem& pitem = it2->second;
+                const mx::UIProperties& ui = pitem.ui;
+
+                addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
+                    ui.enumeration, ui.enumerationValues, mx::EMPTY_STRING, *_propertySheet);
             }
         }
     }
