@@ -13,6 +13,14 @@ namespace ng = nanogui;
 
 class Viewer;
 
+// Property sheet item information
+struct PropertySheetItem
+{
+    std::string label;
+    mx::Shader::Variable* variable = nullptr;
+    mx::UIProperties ui;
+};
+
 // Property sheet
 class PropertySheet 
 {
@@ -36,26 +44,17 @@ class PropertySheet
 
   protected:
     void create(Viewer& parent);
-    void addValueToForm(mx::ValuePtr value, const std::string& label,
-        const std::string& path, mx::ValuePtr min, mx::ValuePtr max,
-        const mx::StringVec& enumeration, const std::vector<mx::ValuePtr> enumValues,
-        const std::string& group, ng::FormHelper& form, Viewer* viewer);
-
+    void addItemToForm(const PropertySheetItem& pitem, const std::string& group,
+                        ng::FormHelper& form, Viewer* viewer);
       
     bool _visible;
     ng::FormHelper* _form;
     ng::Window* _formWindow;
+    bool _fileDialogsForImages;
 };
 
-// Logical item group
-struct PropertySheetItem
-{
-    std::string label;
-    mx::Shader::Variable* variable = nullptr;
-    mx::UIProperties ui;
-};
 
-// Groupings of property sheet items based on a string identifier
+// Property sheet items grouped based on a string identifier
 using PropertySheetGroups = std::multimap <std::string, PropertySheetItem>;
 
 

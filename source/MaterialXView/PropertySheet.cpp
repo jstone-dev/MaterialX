@@ -12,7 +12,8 @@
 PropertySheet::PropertySheet()
     : _form(nullptr),
     _formWindow(nullptr),
-    _visible(false) // Start up with property sheet hidden
+    _visible(false), // Start up with property sheet hidden
+    _fileDialogsForImages(true) // By default use file dialogs for setting image file name inputs
 {
 }
 
@@ -84,11 +85,18 @@ void PropertySheet::create(Viewer& parent)
     _form->setWindow(_formWindow);
 }
 
-void PropertySheet::addValueToForm(mx::ValuePtr value, const std::string& label,
-                            const std::string& path, mx::ValuePtr min, mx::ValuePtr max,
-                            const mx::StringVec& enumeration, const std::vector<mx::ValuePtr> enumValues,
-                            const std::string& group, ng::FormHelper& form, Viewer* viewer)
+void PropertySheet::addItemToForm(const PropertySheetItem& pitem, const std::string& group,
+                                  ng::FormHelper& form, Viewer* viewer)
 {
+    const mx::UIProperties& ui = pitem.ui;
+    mx::ValuePtr value = pitem.variable->value;
+    const std::string& label = pitem.label;
+    const std::string& path = pitem.variable->path;
+    mx::ValuePtr min = ui.uiMin;
+    mx::ValuePtr max = ui.uiMax;
+    const mx::StringVec& enumeration = ui.enumeration;
+    const std::vector<mx::ValuePtr> enumValues = ui.enumerationValues;
+
     if (!value)
     {
         return;
@@ -489,29 +497,70 @@ void PropertySheet::addValueToForm(mx::ValuePtr value, const std::string& label,
         std::string v = value->asA<std::string>();
         if (!v.empty())
         {
-            nanogui::detail::FormWidget<std::string, std::true_type>* stringVar =
-                form.addVariable(label, v, true);
-            stringVar->setCallback([this, path, viewer](const std::string &v)
+            if (_fileDialogsForImages && pitem.variable->type == MaterialX::Type::FILENAME)
             {
-                Material* material = viewer->getMaterial();
-                mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
-                if (uniform)
+                ng::Button* buttonVar = new ng::Button(form.window(), v);
+                form.addWidget(label, buttonVar);
+                buttonVar->setFontSize(form.widgetFontSize()-1);
+                buttonVar->setCallback([buttonVar, path, viewer]()
                 {
-                    if (uniform->type == MaterialX::Type::FILENAME)
+                    Material* material = viewer->getMaterial();
+                    mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
+                    if (uniform)
                     {
-                        const std::string& uniformName = uniform->name;
-                        const std::string& filename = viewer->getSearchPath().find(v);
-                        mx::ImageDesc desc;
-                        uniform->value = mx::Value::createValue<std::string>(filename);
-                        material->ngShader()->bind();
-                        material->bindImage(filename, uniformName, viewer->getImageHandler(), desc);
+                        if (uniform->type == MaterialX::Type::FILENAME)
+                        {
+                            const mx::GLTextureHandlerPtr handler = viewer->getImageHandler();
+                            if (handler)
+                            {
+                                std::string filename = ng::file_dialog
+                                ({ { "png", "PNG" },
+                                    { "jpeg", "JPEG" },
+                                    { "exr", "EXR" },
+                                    { "hdr", "HDR" },
+                                    { "gif", "GIF" },
+                                    { "bmp", "BMP" } }, false);
+                                if (!filename.empty())
+                                {
+                                    mx::ImageDesc desc;
+                                    uniform->value = mx::Value::createValue<std::string>(filename);
+                                    material->ngShader()->bind();
+                                    material->bindImage(filename, uniform->name, handler, desc); 
+
+                                    buttonVar->setCaption(filename);
+                                    viewer->performLayout();
+                                }
+                            }
+                        }
                     }
-                    else
+                });
+            }
+            else
+            {
+                nanogui::detail::FormWidget<std::string, std::true_type>* stringVar =
+                    form.addVariable(label, v, true);
+                stringVar->setCallback([this, path, viewer](const std::string &v)
+                {
+                    Material* material = viewer->getMaterial();
+                    mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
+                    if (uniform)
                     {
-                        uniform->value = mx::Value::createValue<std::string>(v);
+                        if (uniform->type == MaterialX::Type::FILENAME)
+                        {
+                            const std::string& uniformName = uniform->name;
+                            const std::string& filename = viewer->getSearchPath().find(v);
+                            mx::ImageDesc desc;
+                            uniform->value = mx::Value::createValue<std::string>(filename);
+                            material->ngShader()->bind();
+                            material->bindImage(filename, uniformName, viewer->getImageHandler(), desc);
+                        }
+                        else
+                        {
+                            uniform->value = mx::Value::createValue<std::string>(v);
+                        }
                     }
-                }   
-            });
+                });
+            }
         }
     }
 }
@@ -595,24 +644,16 @@ void PropertySheet::updateContents(Viewer* viewer)
         {
             const std::string& folder = it->first;
             const PropertySheetItem& pitem = it->second;
-            const mx::UIProperties& ui = pitem.ui;
-
-            addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
-                ui.enumeration, ui.enumerationValues,
-                (previousFolder == folder) ? mx::EMPTY_STRING : folder, *_form, viewer);
+            addItemToForm(pitem, (previousFolder == folder) ? mx::EMPTY_STRING : folder, *_form, viewer);
             previousFolder.assign(folder);
         }
-        if (!groups.empty() && !unnamedGroups.empty())
+        if (!unnamedGroups.empty())
         {
             _form->addGroup("Other");
         }
         for (auto it2 = unnamedGroups.begin(); it2 != unnamedGroups.end(); ++it2)
         {
-            const PropertySheetItem& pitem = it2->second;
-            const mx::UIProperties& ui = pitem.ui;
-
-            addValueToForm(pitem.variable->value, pitem.label, pitem.variable->path, ui.uiMin, ui.uiMax,
-                ui.enumeration, ui.enumerationValues, mx::EMPTY_STRING, *_form, viewer);
+            addItemToForm(it2->second, mx::EMPTY_STRING, *_form, viewer);
         }
     }
     viewer->performLayout();

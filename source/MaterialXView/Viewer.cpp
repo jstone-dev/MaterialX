@@ -15,7 +15,7 @@
 
 const float PI = std::acos(-1.0f);
 
-const int MIN_ENV_SAMPLES = 16;
+const int MIN_ENV_SAMPLES = 4;
 const int MAX_ENV_SAMPLES = 256;
 
 namespace {
