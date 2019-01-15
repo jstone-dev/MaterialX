@@ -12,7 +12,7 @@ int main(int argc, char* const argv[])
         tokens.push_back(std::string(argv[i]));
     }
 
-    mx::StringVec libraryFolders = { "stdlib", "pbrlib", "stdlib/genglsl", "pbrlib/genglsl" };
+    mx::StringVec libraryFolders = { "stdlib", "pbrlib", };
     mx::FileSearchPath searchPath;
     mx::StringMap nodeRemap;
     for (size_t i = 0; i < tokens.size(); i++)
