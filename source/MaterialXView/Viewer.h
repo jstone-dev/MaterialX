@@ -3,7 +3,7 @@
 
 #include <MaterialXView/Editor.h>
 #include <MaterialXView/Material.h>
-#include <MaterialXView/Mesh.h>
+#include <MaterialXRender/Handlers/GeometryHandler.h>
 
 namespace mx = MaterialX;
 namespace ng = nanogui;
@@ -72,7 +72,7 @@ class Viewer : public ng::Screen
     ng::Window* _window;
     ng::Arcball _arcball;
 
-    MeshPtr _mesh;
+    mx::GeometryHandler _geometryHandler;
     MaterialPtr _material;
 
     mx::Vector3 _eye;

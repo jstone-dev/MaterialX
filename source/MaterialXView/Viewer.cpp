@@ -1,6 +1,7 @@
 #include <MaterialXView/Viewer.h>
 
 #include <MaterialXRender/Handlers/stbImageLoader.h>
+#include <MaterialXRender/Handlers/TinyObjLoader.h>
 #include <MaterialXGenShader/Util.h>
 
 #include <nanogui/button.h>
@@ -89,19 +90,20 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         std::string filename = ng::file_dialog({{"obj", "Wavefront OBJ"}}, false);
         if (!filename.empty())
         {
-            _mesh = MeshPtr(new Mesh());
-            if (_mesh->loadMesh(filename))
-            {
+            _geometryHandler.clearGeometry();
+            bool loaded = _geometryHandler.loadGeometry(filename);
+            if (loaded)
+            { 
                 if (_material)
                 {
-                    _material->bindMesh(_mesh);
+                    mx::StringVec meshNames;
+                    _material->bindMeshes(_geometryHandler, meshNames);
                 }
                 initCamera();
             }
             else
             {
                 new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Mesh Loading Error", filename);
-                _mesh = nullptr;
             }
         }
         mProcessEvents = true;
@@ -169,8 +171,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _stdLib = loadLibraries(_libraryFolders, _searchPath);
 
     std::string meshFilename("documents/TestSuite/Geometry/teapot.obj");
-    _mesh = MeshPtr(new Mesh());
-    _mesh->loadMesh(meshFilename);
+    mx::TinyObjLoaderPtr loader = mx::TinyObjLoader::create();
+    _geometryHandler.addLoader(loader);
+    _geometryHandler.loadGeometry(meshFilename);
     initCamera();
 
     setResizeCallback([this](ng::Vector2i size)
@@ -234,7 +237,8 @@ bool Viewer::setElementSelection(size_t index)
         if (_material)
         {
             _material->bindImages(_imageHandler, _searchPath);
-            _material->bindMesh(_mesh);
+            mx::StringVec meshNames;
+            _material->bindMeshes(_geometryHandler, meshNames);
             _elementIndex = index;
             return true;
         }
@@ -332,7 +336,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (!_mesh || !_material)
+    if (_geometryHandler.getMeshes().empty() || !_material)
     {
         return;
     }
@@ -360,11 +364,14 @@ void Viewer::drawContents()
         glDisable(GL_BLEND);
     }
 
-    for (size_t partIndex = 0; partIndex < _mesh->getPartitionCount(); partIndex++)
+    for (auto mesh : _geometryHandler.getMeshes())
     {
-        const Partition& part = _mesh->getPartition(partIndex);
-        _material->bindPartition(part);
-        shader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) part.getFaceCount());
+        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
+        {
+            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
+            _material->bindPartition(part);
+            shader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
+        }
     }
 
     glDisable(GL_BLEND);
@@ -400,7 +407,12 @@ bool Viewer::mouseMotionEvent(const ng::Vector2i& p,
         mx::Matrix44 world, view, proj;
         computeCameraMatrices(world, view, proj);
         mx::Matrix44 worldView = view * world;
-        float zval = ng::project(ng::Vector3f(_mesh->getSphereCenter().data()),
+
+        mx::Vector3 boxMin = _geometryHandler.getMinimumBounds();
+        mx::Vector3 boxMax = _geometryHandler.getMaximumBounds();
+        mx::Vector3 sphereCenter = (boxMax + boxMin) / 2.0;
+
+        float zval = ng::project(ng::Vector3f(sphereCenter.data()),
                                  ng::Matrix4f(worldView.getTranspose().data()),
                                  ng::Matrix4f(proj.getTranspose().data()),
                                  mSize).z();
@@ -457,8 +469,13 @@ void Viewer::initCamera()
 {
     _arcball = ng::Arcball();
     _arcball.setSize(mSize);
-    _modelZoom = 2.0f / _mesh->getSphereRadius();
-    _modelTranslation = _mesh->getSphereCenter() * -1.0f;
+
+    mx::Vector3 boxMin = _geometryHandler.getMinimumBounds();
+    mx::Vector3 boxMax = _geometryHandler.getMaximumBounds();
+    mx::Vector3 sphereCenter = (boxMax + boxMin) / 2.0;
+    float sphereRadius = (sphereCenter - boxMin).getMagnitude();
+    _modelZoom = 2.0f / sphereRadius;
+    _modelTranslation = sphereCenter * -1.0f;
 }
 
 void Viewer::computeCameraMatrices(mx::Matrix44& world,

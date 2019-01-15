@@ -108,7 +108,16 @@ MaterialPtr Material::generateMaterial(const mx::FileSearchPath& searchPath, mx:
     return nullptr;
 }
 
-void Material::bindMesh(MeshPtr& mesh)
+void Material::bindMeshes(const mx::GeometryHandler& handler, const mx::StringVec& /*names*/)
+{
+    mx::MeshList meshes = handler.getMeshes();
+    for (auto mesh : meshes)
+    {
+        bindMesh(mesh);
+    }
+}
+
+void Material::bindMesh(const mx::MeshPtr mesh)
 {
     if (!mesh || !_ngShader)
     {
@@ -118,27 +127,35 @@ void Material::bindMesh(MeshPtr& mesh)
     _ngShader->bind();
     if (_ngShader->attrib("i_position") != -1)
     {
-        MatrixXfProxy positions(&mesh->getPositions()[0][0], 3, mesh->getPositions().size());
+        mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::POSITION_ATTRIBUTE, 0);
+        mx::MeshFloatBuffer &buffer = stream->getData();
+        MatrixXfProxy positions(&buffer[0], stream->getStride(), buffer.size() / 3);
         _ngShader->uploadAttrib("i_position", positions);
     }
     if (_ngShader->attrib("i_normal", false) != -1)
     {
-        MatrixXfProxy normals(&mesh->getNormals()[0][0], 3, mesh->getNormals().size());
+        mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::NORMAL_ATTRIBUTE, 0);
+        mx::MeshFloatBuffer &buffer = stream->getData();
+        MatrixXfProxy normals(&buffer[0], stream->getStride(), buffer.size() / 3);
         _ngShader->uploadAttrib("i_normal", normals);
     }
     if (_ngShader->attrib("i_tangent", false) != -1)
     {
-        MatrixXfProxy tangents(&mesh->getTangents()[0][0], 3, mesh->getTangents().size());
+        mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::TANGENT_ATTRIBUTE, 0);
+        mx::MeshFloatBuffer &buffer = stream->getData();
+        MatrixXfProxy tangents(&buffer[0], stream->getStride(), buffer.size() / 3);
         _ngShader->uploadAttrib("i_tangent", tangents);
     }
     if (_ngShader->attrib("i_texcoord_0", false) != -1)
     {
-        MatrixXfProxy texcoords(&mesh->getTexcoords()[0][0], 2, mesh->getTexcoords().size());
+        mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::TEXCOORD_ATTRIBUTE, 0);
+        mx::MeshFloatBuffer &buffer = stream->getData();
+        MatrixXfProxy texcoords(&buffer[0], stream->getStride(), buffer.size() / 2);
         _ngShader->uploadAttrib("i_texcoord_0", texcoords);
     }
 }
 
-void Material::bindPartition(const Partition& part)
+void Material::bindPartition(mx::MeshPartitionPtr part)
 {
     if (!_ngShader)
     {
@@ -146,7 +163,7 @@ void Material::bindPartition(const Partition& part)
     }
 
     _ngShader->bind();
-    MatrixXuProxy indices(&part.getIndices()[0], 3, part.getIndices().size() / 3);
+    MatrixXuProxy indices(&part->getIndices()[0], 3, part->getIndices().size() / 3);
     _ngShader->uploadIndices(indices);
 }
 

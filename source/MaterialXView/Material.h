@@ -1,7 +1,7 @@
 #ifndef MATERIALXVIEW_MATERIAL_H
 #define MATERIALXVIEW_MATERIAL_H
 
-#include <MaterialXView/Mesh.h>
+#include <MaterialXRender/Handlers/GeometryHandler.h>
 
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/XmlIo.h>
@@ -33,10 +33,13 @@ class Material
     mx::HwShaderPtr mxShader() const { return _mxShader; }
 
     /// Bind mesh geometry to shader
-    void bindMesh(MeshPtr& mesh);
+    void bindMeshes(const mx::GeometryHandler& handler, const mx::StringVec& names);
+
+    /// Bind mesh geometry to shader
+    void bindMesh(const mx::MeshPtr mesh);
 
     /// Bind mesh partition to shader
-    void bindPartition(const Partition& part);
+    void bindPartition(mx::MeshPartitionPtr part);
 
     /// Bind viewing information to shader
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
