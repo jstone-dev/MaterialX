@@ -32,14 +32,11 @@ class Material
     /// Get MaterialX shader
     mx::HwShaderPtr mxShader() const { return _mxShader; }
 
-    /// Bind mesh geometry to shader
-    void bindMeshes(const mx::GeometryHandler& handler, const mx::StringVec& names);
+    /// Bind mesh given a handler
+    void bindMesh(const mx::GeometryHandler& handler);
 
-    /// Bind mesh geometry to shader
-    void bindMesh(const mx::MeshPtr mesh);
-
-    /// Bind mesh partition to shader
-    void bindPartition(mx::MeshPartitionPtr part);
+    /// Draw the mesh given a handler
+    void draw(const mx::GeometryHandler& handler) const;
 
     /// Bind viewing information to shader
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
@@ -57,6 +54,12 @@ class Material
     /// Return if the shader is has transparency
     bool hasTransparency() const { return _hasTransparency; }
 
+    /// List of associated geometry for this material
+    mx::StringVec& getGeometryList()
+    {
+        return _geometryList;
+    }
+
     /// Find a variable (uniform) based on MaterialX path
     mx::Shader::Variable* findUniform(const std::string path) const;
 
@@ -68,9 +71,20 @@ class Material
     {
     }
 
+    // Utility to set associated geometry for the material. For now it
+    // assigns all partitions to the the material
+    void assignPartitionsToMaterial(const mx::GeometryHandler handler);
+
+    /// Bind mesh streams given a mesh
+    void bindMeshStreams(mx::MeshPtr mesh) const;
+
+    /// Bind mesh partition 
+    void bindPartition(mx::MeshPartitionPtr part) const;
+
     GLShaderPtr _ngShader;
     mx::HwShaderPtr _mxShader;
     bool _hasTransparency;
+    mx::StringVec _geometryList;
 };
 
 mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib);
