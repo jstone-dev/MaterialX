@@ -63,7 +63,7 @@ void mx_generalizedschlickbrdf_indirect(vec3 V, float weight, vec3 color0, vec3 
         return;
     }
 
-    vec3 Li = mx_environment_specular(normal, V, roughness.alpha);
+    vec3 Li = mx_environment_specular(normal, V, tangent, roughness);
 
     float NdotV = dot(normal,V);
     vec3 F = mx_fresnel_schlick(NdotV, color0, color90, exponent);

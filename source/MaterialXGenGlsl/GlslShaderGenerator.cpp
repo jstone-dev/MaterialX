@@ -426,6 +426,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     // Emit lighting functions
     if (lighting)
     {
+        shader.addInclude("pbrlib/" + GlslShaderGenerator::LANGUAGE + "/lib/mx_bsdfs.glsl", *this);
         shader.addInclude("pbrlib/" + GlslShaderGenerator::LANGUAGE + "/lib/mx_lighting.glsl", *this);
         shader.newLine();
     }
