@@ -6,9 +6,6 @@ endif()
 
 file(GLOB materialx_source "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 file(GLOB materialx_headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
-file(GLOB tinyobjloader_headers "${CMAKE_CURRENT_SOURCE_DIR}/TinyObjLoader/*.h")
-
-source_group("Header Files\\TinyObjLoader" FILES ${tinyobjloader_headers})
 
 set(NANOGUI_BUILD_EXAMPLE OFF CACHE BOOL " " FORCE)
 set(NANOGUI_BUILD_SHARED OFF CACHE BOOL " " FORCE)
@@ -29,7 +26,7 @@ if(MSVC)
     add_compile_options(/D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS)
 endif()
 
-add_executable(MaterialXView ${materialx_source} ${materialx_headers} ${tinyobjloader_headers})
+add_executable(MaterialXView ${materialx_source} ${materialx_headers})
 
 target_link_libraries(
     MaterialXView

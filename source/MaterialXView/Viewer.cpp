@@ -93,11 +93,10 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _geometryHandler.clearGeometry();
             bool loaded = _geometryHandler.loadGeometry(filename);
             if (loaded)
-            { 
+            {
                 if (_material)
                 {
-                    mx::StringVec meshNames;
-                    _material->bindMeshes(_geometryHandler, meshNames);
+                    _material->bindMesh(_geometryHandler);
                 }
                 initCamera();
             }
@@ -237,8 +236,7 @@ bool Viewer::setElementSelection(size_t index)
         if (_material)
         {
             _material->bindImages(_imageHandler, _searchPath);
-            mx::StringVec meshNames;
-            _material->bindMeshes(_geometryHandler, meshNames);
+            _material->bindMesh(_geometryHandler);
             _elementIndex = index;
             return true;
         }
@@ -364,15 +362,7 @@ void Viewer::drawContents()
         glDisable(GL_BLEND);
     }
 
-    for (auto mesh : _geometryHandler.getMeshes())
-    {
-        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
-        {
-            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-            _material->bindPartition(part);
-            shader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
-        }
-    }
+    _material->draw(_geometryHandler);
 
     glDisable(GL_BLEND);
     glDisable(GL_FRAMEBUFFER_SRGB);
