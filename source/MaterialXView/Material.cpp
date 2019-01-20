@@ -95,6 +95,10 @@ StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr&
     return StringPair(vertexShader, pixelShader);
 }
 
+//
+// Viewer methods
+//
+
 MaterialPtr Material::generateMaterial(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
 {
     mx::HwShaderPtr hwShader;
@@ -190,25 +194,6 @@ void Material::bindMeshStreams(const mx::MeshPtr mesh) const
     }
 }
 
-void Material::draw(const mx::GeometryHandler& handler) const
-{
-    bool nothingToMatch = _geometryList.empty();
-    for (auto mesh : handler.getMeshes())
-    {
-        bool meshMatches = nothingToMatch || (std::find(_geometryList.begin(), _geometryList.end(), mesh->getIdentifier()) != _geometryList.end());
-        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
-        {
-            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-            bool partMatches = meshMatches || (std::find(_geometryList.begin(), _geometryList.end(), part->getIdentifier()) != _geometryList.end());
-            if (partMatches)
-            {
-                bindPartition(part);
-                _ngShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
-            }
-        }
-    }
-}
-
 void Material::bindPartition(mx::MeshPartitionPtr part) const
 {
     if (!_ngShader)
@@ -219,6 +204,33 @@ void Material::bindPartition(mx::MeshPartitionPtr part) const
     _ngShader->bind();
     MatrixXuProxy indices(&part->getIndices()[0], 3, part->getIndices().size() / 3);
     _ngShader->uploadIndices(indices);
+}
+
+void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj)
+{
+    if (!_ngShader)
+    {
+        return;
+    }
+
+    _ngShader->bind();
+
+    mx::Matrix44 viewProj = proj * view;
+    mx::Matrix44 invView = view.getInverse();
+    mx::Matrix44 invTransWorld = world.getInverse().getTranspose();
+
+    // Bind view properties.
+    _ngShader->setUniform("u_worldMatrix", ng::Matrix4f(world.getTranspose().data()));
+    _ngShader->setUniform("u_viewProjectionMatrix", ng::Matrix4f(viewProj.getTranspose().data()));
+    if (_ngShader->uniform("u_worldInverseTransposeMatrix", false) != -1)
+    {
+        _ngShader->setUniform("u_worldInverseTransposeMatrix", ng::Matrix4f(invTransWorld.getTranspose().data()));
+    }
+    if (_ngShader->uniform("u_viewPosition", false) != -1)
+    {
+        mx::Vector3 viewPosition(invView[0][3], invView[1][3], invView[2][3]);
+        _ngShader->setUniform("u_viewPosition", ng::Vector3f(viewPosition.data()));
+    }
 }
 
 bool Material::bindImage(const std::string& filename, const std::string& uniformName, 
@@ -249,8 +261,12 @@ bool Material::bindImage(const std::string& filename, const std::string& uniform
 
 void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& searchPath)
 {
-    mx::HwShaderPtr hwShader = mxShader();
-    const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+    if (!_ngShader || !_mxShader)
+    {
+        return;
+    }
+
+    const MaterialX::Shader::VariableBlock publicUniforms = _mxShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
     for (auto uniform : publicUniforms.variableOrder)
     {
         if (uniform->type != MaterialX::Type::FILENAME)
@@ -308,46 +324,50 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
     }
 }
 
-void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj)
+void Material::draw(const mx::GeometryHandler& handler) const
 {
-    GLShaderPtr shader = ngShader();
-    mx::HwShaderPtr hwShader = mxShader();
-
-    mx::Matrix44 viewProj = proj * view;
-    mx::Matrix44 invView = view.getInverse();
-    mx::Matrix44 invTransWorld = world.getInverse().getTranspose();
-
-    // Bind view properties.
-    shader->setUniform("u_worldMatrix", ng::Matrix4f(world.getTranspose().data()));
-    shader->setUniform("u_viewProjectionMatrix", ng::Matrix4f(viewProj.getTranspose().data()));
-    if (shader->uniform("u_worldInverseTransposeMatrix", false) != -1)
+    bool nothingToMatch = _geometryList.empty();
+    for (auto mesh : handler.getMeshes())
     {
-        shader->setUniform("u_worldInverseTransposeMatrix", ng::Matrix4f(invTransWorld.getTranspose().data()));
-    }
-    if (shader->uniform("u_viewPosition", false) != -1)
-    {
-        mx::Vector3 viewPosition(invView[0][3], invView[1][3], invView[2][3]);
-        shader->setUniform("u_viewPosition", ng::Vector3f(viewPosition.data()));
-    }
-
-    
-}
-
-mx::Shader::Variable* Material::findUniform(const std::string path) const
-{
-    GLShaderPtr shader = ngShader();
-    mx::HwShaderPtr hwShader = mxShader();
-    if (hwShader && shader)
-    {
-        const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
-        for (auto uniform : publicUniforms.variableOrder)
+        bool meshMatches = nothingToMatch || (std::find(_geometryList.begin(), _geometryList.end(), mesh->getIdentifier()) != _geometryList.end());
+        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
         {
-            if (uniform->path == path)
+            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
+            bool partMatches = meshMatches || (std::find(_geometryList.begin(), _geometryList.end(), part->getIdentifier()) != _geometryList.end());
+            if (partMatches)
             {
-                return uniform;
+                bindPartition(part);
+                _ngShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
             }
         }
     }
-    return nullptr;
 }
 
+const MaterialX::Shader::VariableBlock* Material::getPublicUniforms() const
+{
+    if (!_mxShader)
+    {
+        return nullptr;
+    }
+
+    return &_mxShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+}
+
+mx::Shader::Variable* Material::findUniform(const std::string& path) const
+{
+    const MaterialX::Shader::VariableBlock* publicUniforms = getPublicUniforms();
+    if (!publicUniforms)
+    {
+        return nullptr;
+    }
+
+    for (auto uniform : publicUniforms->variableOrder)
+    {
+        if (uniform->path == path)
+        {
+            return uniform;
+        }
+    }
+
+    return nullptr;
+}

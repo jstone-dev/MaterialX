@@ -122,14 +122,14 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                 mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
                 if (uniform)
                 {
-                    material->ngShader()->bind();
+                    material->getShader()->bind();
                     if (v < (int) enumValues.size())
                     {
-                        material->ngShader()->setUniform(uniform->name, enumValues[v]->asA<int>());
+                        material->getShader()->setUniform(uniform->name, enumValues[v]->asA<int>());
                     }
                     else
                     {
-                        material->ngShader()->setUniform(uniform->name, v);
+                        material->getShader()->setUniform(uniform->name, v);
                     }
                 }
             });
@@ -147,8 +147,8 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                     mx::Shader::Variable* uniform = material->findUniform(path);
                     if (uniform)
                     {
-                        material->ngShader()->bind();
-                        material->ngShader()->setUniform(uniform->name, v);
+                        material->getShader()->bind();
+                        material->getShader()->setUniform(uniform->name, v);
                     }
                 }
             });
@@ -174,8 +174,8 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                 mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
                 if (uniform)
                 {
-                    material->ngShader()->bind();
-                    material->ngShader()->setUniform(uniform->name, v);
+                    material->getShader()->bind();
+                    material->getShader()->setUniform(uniform->name, v);
                 }                
             }
         });
@@ -198,11 +198,11 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector2f v;
                 v.x() = c.r();
                 v.y() = c.g();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
                 ng::Color c2 = c;
                 c2.b() = 0.0f;
                 c2.w() = 1.0f;
@@ -244,7 +244,7 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                 mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
                 if (uniform)
                 {
-                    material->ngShader()->bind();
+                    material->getShader()->bind();
                     if (index < (int) enumValues.size())
                     {
                         mx::Color3 c = enumValues[index]->asA<mx::Color3>();
@@ -252,7 +252,7 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                         v.x() = c[0];
                         v.y() = c[1];
                         v.z() = c[2];
-                        material->ngShader()->setUniform(uniform->name, v);
+                        material->getShader()->setUniform(uniform->name, v);
                     }
                 }
             });
@@ -273,12 +273,12 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                 mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
                 if (uniform)
                 {
-                    material->ngShader()->bind();
+                    material->getShader()->bind();
                     ng::Vector3f v;
                     v.x() = c.r();
                     v.y() = c.g();
                     v.z() = c.b();
-                    material->ngShader()->setUniform(uniform->name, v);
+                    material->getShader()->setUniform(uniform->name, v);
                 }
             });
         }
@@ -301,13 +301,13 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector4f v;
                 v.x() = c.r();
                 v.y() = c.g();
                 v.z() = c.b();
                 v.w() = c.w();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
     }
@@ -326,11 +326,11 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector2f v;
                 v.x() = f;
                 v.y() = v2->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v1->setSpinnable(true);
@@ -340,11 +340,11 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector2f v;
                 v.x() = v1->value();
                 v.y() = f;
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v2->setSpinnable(true);
@@ -366,12 +366,12 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector3f v;
                 v.x() = f;
                 v.y() = v2->value();
                 v.z() = v3->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v1->setSpinnable(true);
@@ -381,12 +381,12 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector3f v;
                 v.x() = v1->value();
                 v.y() = f;
                 v.z() = v3->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v2->setSpinnable(true);
@@ -396,12 +396,12 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector3f v;
                 v.x() = v1->value();
                 v.y() = v2->value();
                 v.z() = f;
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v3->setSpinnable(true);
@@ -425,13 +425,13 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector4f v;
                 v.x() = f;
                 v.y() = v2->value();
                 v.z() = v3->value();
                 v.w() = v4->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v1->setSpinnable(true);
@@ -441,13 +441,13 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector4f v;
                 v.x() = v1->value();
                 v.y() = f;
                 v.z() = v3->value();
                 v.w() = v4->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v2->setSpinnable(true);
@@ -457,13 +457,13 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector4f v;
                 v.x() = v1->value();
                 v.y() = v2->value();
                 v.z() = f;
                 v.w() = v4->value();
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v3->setSpinnable(true);
@@ -473,13 +473,13 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
             mx::Shader::Variable* uniform = material ? material->findUniform(path) : nullptr;
             if (uniform)
             {
-                material->ngShader()->bind();
+                material->getShader()->bind();
                 ng::Vector4f v;
                 v.x() = v1->value();
                 v.y() = v2->value();
                 v.z() = v3->value();
                 v.w() = f;
-                material->ngShader()->setUniform(uniform->name, v);
+                material->getShader()->setUniform(uniform->name, v);
             }
         });
         v4->setSpinnable(true);
@@ -518,7 +518,7 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                                 {
                                     mx::ImageDesc desc;
                                     uniform->value = mx::Value::createValue<std::string>(filename);
-                                    material->ngShader()->bind();
+                                    material->getShader()->bind();
                                     material->bindImage(filename, uniform->name, handler, desc); 
 
                                     buttonVar->setCaption(filename);
@@ -545,7 +545,7 @@ void PropertyEditor::addItemToForm(const EditorItem& item, const std::string& gr
                             const std::string& filename = viewer->getSearchPath().find(v);
                             mx::ImageDesc desc;
                             uniform->value = mx::Value::createValue<std::string>(filename);
-                            material->ngShader()->bind();
+                            material->getShader()->bind();
                             material->bindImage(filename, uniformName, viewer->getImageHandler(), desc);
                         }
                         else
@@ -576,15 +576,12 @@ void PropertyEditor::updateContents(Viewer* viewer)
         return;
     }
 
-    GLShaderPtr shader = material->ngShader();
-    mx::HwShaderPtr hwShader = material->mxShader();
-    if (hwShader && shader)
+    const MaterialX::Shader::VariableBlock* publicUniforms = material->getPublicUniforms();
+    if (publicUniforms)
     {
-        const MaterialX::Shader::VariableBlock publicUniforms = hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
-
         EditorGroups groups;
         EditorGroups unnamedGroups;
-        for (auto uniform : publicUniforms.variableOrder)
+        for (auto uniform : publicUniforms->variableOrder)
         {
             if (uniform->path.size() && uniform->value)
             {

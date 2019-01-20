@@ -334,7 +334,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (_geometryHandler.getMeshes().empty() || !_material)
+    if (_geometryHandler.getMeshes().empty() || !_material || !_material->getShader())
     {
         return;
     }
@@ -342,9 +342,7 @@ void Viewer::drawContents()
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
-    GLShaderPtr shader = _material->ngShader();
-    shader->bind();
-
+    _material->getShader()->bind();
     _material->bindViewInformation(world, view, proj);
     _material->bindImages(_imageHandler, _searchPath);
     _material->bindLights(_imageHandler, _searchPath, _envSamples);
