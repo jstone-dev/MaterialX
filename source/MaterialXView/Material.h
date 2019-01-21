@@ -26,20 +26,23 @@ class Material
   public:
     static MaterialPtr generateMaterial(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
 
-    /// Get the NanoGUI shader associated with this material.
-    GLShaderPtr getShader() const { return _ngShader; }
-    
     /// Bind mesh given a handler.
     void bindMesh(const mx::GeometryHandler& handler);
 
-    /// Bind viewing information to shader.
+    /// Return the underlying OpenGL shader.
+    GLShaderPtr getShader() const { return _glShader; }
+    
+    /// Bind the underlying OpenGL shader, returning true upon success.
+    bool bindShader();
+
+    /// Bind viewing information for this material.
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
 
     /// Bind image to shader.
     bool bindImage(const std::string& filename, const std::string& uniformName,
                    mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc);
 
-    /// Bind required images to shader.
+    /// Bind all images for this material.
     void bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath);
 
     /// Bind lights to shader.
@@ -58,31 +61,31 @@ class Material
     }
 
     // Return the block of public uniforms for this material.
-    const mx::Shader::VariableBlock* Material::getPublicUniforms() const;
+    const mx::Shader::VariableBlock* getPublicUniforms() const;
 
     /// Find a public uniform from its MaterialX path.
     mx::Shader::Variable* findUniform(const std::string& path) const;
 
   protected:
-    Material(GLShaderPtr ngshader, mx::HwShaderPtr mxshader) :
-        _ngShader(ngshader),
-        _mxShader(mxshader),
-        _hasTransparency(mxshader ? mxshader->hasTransparency() : false)
+    Material(GLShaderPtr glShader, mx::HwShaderPtr hwShader) :
+        _glShader(glShader),
+        _hwShader(hwShader),
+        _hasTransparency(hwShader ? hwShader->hasTransparency() : false)
     {
     }
 
-    // Utility to set associated geometry for the material. For now it
-    // assigns all partitions to the the material
+    // Utility to set associated geometry for the material.  For now it
+    // assigns all partitions to the the material.
     void assignPartitionsToMaterial(const mx::GeometryHandler handler);
 
-    /// Bind mesh streams given a mesh
+    /// Bind mesh streams given a mesh.
     void bindMeshStreams(mx::MeshPtr mesh) const;
 
-    /// Bind mesh partition 
+    /// Bind mesh partition.
     void bindPartition(mx::MeshPartitionPtr part) const;
 
-    GLShaderPtr _ngShader;
-    mx::HwShaderPtr _mxShader;
+    GLShaderPtr _glShader;
+    mx::HwShaderPtr _hwShader;
     bool _hasTransparency;
     mx::StringVec _geometryList;
 };
@@ -91,6 +94,6 @@ mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLi
 mx::DocumentPtr loadLibraries(const mx::StringVec& libraryNames, const mx::FileSearchPath& searchPath);
 void remapNodes(mx::DocumentPtr& doc, const mx::StringMap& nodeRemap);
 
-StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem);
+mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
 
 #endif // MATERIALXVIEW_MATERIAL_H

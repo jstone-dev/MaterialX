@@ -64,11 +64,11 @@ void remapNodes(mx::DocumentPtr& doc, const mx::StringMap& nodeRemap)
     }
 }
 
-StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr& hwShader, mx::ElementPtr elem)
+mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
 {  
     if (!elem)
     {
-        return StringPair();
+        return nullptr;
     }
 
     mx::ShaderGeneratorPtr shaderGenerator = mx::GlslShaderGenerator::create();
@@ -87,12 +87,7 @@ StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr&
     options.targetColorSpaceOverride = "lin_rec709";
     mx::ShaderPtr sgShader = shaderGenerator->generate("Shader", elem, options);
 
-    std::string vertexShader = sgShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
-    std::string pixelShader = sgShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
-
-    hwShader = std::dynamic_pointer_cast<mx::HwShader>(sgShader);
-
-    return StringPair(vertexShader, pixelShader);
+    return std::dynamic_pointer_cast<mx::HwShader>(sgShader);
 }
 
 //
@@ -101,15 +96,18 @@ StringPair generateSource(const mx::FileSearchPath& searchPath, mx::HwShaderPtr&
 
 MaterialPtr Material::generateMaterial(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
 {
-    mx::HwShaderPtr hwShader;
-    StringPair source = generateSource(searchPath, hwShader, elem);
-    if (!source.first.empty() && !source.second.empty())
+    mx::HwShaderPtr hwShader = generateSource(searchPath, elem);
+    if (!hwShader)
     {
-        GLShaderPtr ngShader = GLShaderPtr(new ng::GLShader());
-        ngShader->init(elem->getNamePath(), source.first, source.second);
-        return MaterialPtr(new Material(ngShader, hwShader));
+        return nullptr;
     }
-    return nullptr;
+
+    std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
+    std::string pixelShader = hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
+
+    GLShaderPtr glShader = std::make_shared<ng::GLShader>();
+    glShader->init(elem->getNamePath(), vertexShader, pixelShader);
+    return MaterialPtr(new Material(glShader, hwShader));
 }
 
 void Material::assignPartitionsToMaterial(const mx::GeometryHandler handler)
@@ -128,7 +126,6 @@ void Material::bindMesh(const mx::GeometryHandler& handler)
 {
     assignPartitionsToMaterial(handler);
 
-    mx::MeshList meshes = handler.getMeshes();
     bool haveMaterialGeometry = !_geometryList.empty();
     for (auto mesh : handler.getMeshes())
     {
@@ -158,90 +155,97 @@ void Material::bindMesh(const mx::GeometryHandler& handler)
 
 void Material::bindMeshStreams(const mx::MeshPtr mesh) const
 {
-    if (!mesh || !_ngShader)
+    if (!mesh || !_glShader)
     {
         return;
     }
 
-    _ngShader->bind();
-    if (_ngShader->attrib("i_position") != -1)
+    _glShader->bind();
+    if (_glShader->attrib("i_position") != -1)
     {
         mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::POSITION_ATTRIBUTE, 0);
         mx::MeshFloatBuffer &buffer = stream->getData();
         MatrixXfProxy positions(&buffer[0], stream->getStride(), buffer.size() / stream->getStride());
-        _ngShader->uploadAttrib("i_position", positions);
+        _glShader->uploadAttrib("i_position", positions);
     }
-    if (_ngShader->attrib("i_normal", false) != -1)
+    if (_glShader->attrib("i_normal", false) != -1)
     {
         mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::NORMAL_ATTRIBUTE, 0);
         mx::MeshFloatBuffer &buffer = stream->getData();
         MatrixXfProxy normals(&buffer[0], stream->getStride(), buffer.size() / stream->getStride());
-        _ngShader->uploadAttrib("i_normal", normals);
+        _glShader->uploadAttrib("i_normal", normals);
     }
-    if (_ngShader->attrib("i_tangent", false) != -1)
+    if (_glShader->attrib("i_tangent", false) != -1)
     {
         mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::TANGENT_ATTRIBUTE, 0);
         mx::MeshFloatBuffer &buffer = stream->getData();
         MatrixXfProxy tangents(&buffer[0], stream->getStride(), buffer.size() / stream->getStride());
-        _ngShader->uploadAttrib("i_tangent", tangents);
+        _glShader->uploadAttrib("i_tangent", tangents);
     }
-    if (_ngShader->attrib("i_texcoord_0", false) != -1)
+    if (_glShader->attrib("i_texcoord_0", false) != -1)
     {
         mx::MeshStreamPtr stream = mesh->getStream(mx::MeshStream::TEXCOORD_ATTRIBUTE, 0);
         mx::MeshFloatBuffer &buffer = stream->getData();
         MatrixXfProxy texcoords(&buffer[0], stream->getStride(), buffer.size() / stream->getStride());
-        _ngShader->uploadAttrib("i_texcoord_0", texcoords);
+        _glShader->uploadAttrib("i_texcoord_0", texcoords);
     }
 }
 
 void Material::bindPartition(mx::MeshPartitionPtr part) const
 {
-    if (!_ngShader)
+    if (!_glShader)
     {
         return;
     }
 
-    _ngShader->bind();
+    _glShader->bind();
     MatrixXuProxy indices(&part->getIndices()[0], 3, part->getIndices().size() / 3);
-    _ngShader->uploadIndices(indices);
+    _glShader->uploadIndices(indices);
+}
+
+bool Material::bindShader()
+{
+    if (!_glShader)
+    {
+        return false;
+    }
+
+    _glShader->bind();
+    return true;
 }
 
 void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj)
 {
-    if (!_ngShader)
+    if (!bindShader())
     {
         return;
     }
-
-    _ngShader->bind();
 
     mx::Matrix44 viewProj = proj * view;
     mx::Matrix44 invView = view.getInverse();
     mx::Matrix44 invTransWorld = world.getInverse().getTranspose();
 
     // Bind view properties.
-    _ngShader->setUniform("u_worldMatrix", ng::Matrix4f(world.getTranspose().data()));
-    _ngShader->setUniform("u_viewProjectionMatrix", ng::Matrix4f(viewProj.getTranspose().data()));
-    if (_ngShader->uniform("u_worldInverseTransposeMatrix", false) != -1)
+    _glShader->setUniform("u_worldMatrix", ng::Matrix4f(world.getTranspose().data()));
+    _glShader->setUniform("u_viewProjectionMatrix", ng::Matrix4f(viewProj.getTranspose().data()));
+    if (_glShader->uniform("u_worldInverseTransposeMatrix", false) != -1)
     {
-        _ngShader->setUniform("u_worldInverseTransposeMatrix", ng::Matrix4f(invTransWorld.getTranspose().data()));
+        _glShader->setUniform("u_worldInverseTransposeMatrix", ng::Matrix4f(invTransWorld.getTranspose().data()));
     }
-    if (_ngShader->uniform("u_viewPosition", false) != -1)
+    if (_glShader->uniform("u_viewPosition", false) != -1)
     {
         mx::Vector3 viewPosition(invView[0][3], invView[1][3], invView[2][3]);
-        _ngShader->setUniform("u_viewPosition", ng::Vector3f(viewPosition.data()));
+        _glShader->setUniform("u_viewPosition", ng::Vector3f(viewPosition.data()));
     }
 }
 
 bool Material::bindImage(const std::string& filename, const std::string& uniformName, 
                          mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc)
 {
-    if (!_ngShader)
+    if (!bindShader())
     {
         return false;
     }
-
-    _ngShader->bind();
 
     // Acquire the given image.
     std::array<float, 4> defaultColor{0, 0, 0, 1};
@@ -252,7 +256,7 @@ bool Material::bindImage(const std::string& filename, const std::string& uniform
     }
 
     // Bind the image and set its sampling properties.
-    _ngShader->setUniform(uniformName, desc.resourceId);
+    _glShader->setUniform(uniformName, desc.resourceId);
     mx::ImageSamplingProperties samplingProperties;
     imageHandler->bindImage(filename, samplingProperties);
 
@@ -261,12 +265,12 @@ bool Material::bindImage(const std::string& filename, const std::string& uniform
 
 void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& searchPath)
 {
-    if (!_ngShader || !_mxShader)
+    if (!bindShader())
     {
         return;
     }
 
-    const MaterialX::Shader::VariableBlock publicUniforms = _mxShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+    const MaterialX::Shader::VariableBlock publicUniforms = _hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
     for (auto uniform : publicUniforms.variableOrder)
     {
         if (uniform->type != MaterialX::Type::FILENAME)
@@ -287,17 +291,15 @@ void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
 
 void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, int envSamples)
 {
-    if (!_ngShader)
+    if (!bindShader())
     {
         return;
     }
 
-    _ngShader->bind();
-
     // Bind light properties.
-    if (_ngShader->uniform("u_envSamples", false) != -1)
+    if (_glShader->uniform("u_envSamples", false) != -1)
     {
-        _ngShader->setUniform("u_envSamples", envSamples);
+        _glShader->setUniform("u_envSamples", envSamples);
     }
     mx::StringMap lightTextures = {
         { "u_envRadiance", "documents/TestSuite/Images/san_giuseppe_bridge.hdr" },
@@ -305,7 +307,7 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
     };
     for (auto pair : lightTextures)
     {
-        if (_ngShader->uniform(pair.first, false) != -1)
+        if (_glShader->uniform(pair.first, false) != -1)
         {
             // Access cached image or load from disk.
             mx::FilePath path = imagePath.find(pair.second);
@@ -317,7 +319,7 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
                 // Bind any associated uniforms.
                 if (pair.first == "u_envRadiance")
                 {
-                    _ngShader->setUniform("u_envRadianceMips", desc.mipCount);
+                    _glShader->setUniform("u_envRadianceMips", desc.mipCount);
                 }
             }
         }
@@ -337,7 +339,7 @@ void Material::draw(const mx::GeometryHandler& handler) const
             if (partMatches)
             {
                 bindPartition(part);
-                _ngShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
+                _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
             }
         }
     }
@@ -345,12 +347,12 @@ void Material::draw(const mx::GeometryHandler& handler) const
 
 const MaterialX::Shader::VariableBlock* Material::getPublicUniforms() const
 {
-    if (!_mxShader)
+    if (!_hwShader)
     {
         return nullptr;
     }
 
-    return &_mxShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+    return &_hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
 }
 
 mx::Shader::Variable* Material::findUniform(const std::string& path) const

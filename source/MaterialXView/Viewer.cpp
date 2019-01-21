@@ -77,7 +77,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _libraryFolders(libraryFolders),
     _searchPath(searchPath),
     _nodeRemap(nodeRemap),
-    _envSamples(DEFAULT_ENV_SAMPLES)
+    _envSamples(DEFAULT_ENV_SAMPLES),
+    _geomIndex(0),
+    _elemIndex(0)
 {
     _window = new ng::Window(this, "Viewer Options");
     _window->setPosition(ng::Vector2i(15, 15));
@@ -91,13 +93,13 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         if (!filename.empty())
         {
             _geometryHandler.clearGeometry();
-            bool loaded = _geometryHandler.loadGeometry(filename);
-            if (loaded)
+            if (_geometryHandler.loadGeometry(filename))
             {
                 if (_material)
                 {
                     _material->bindMesh(_geometryHandler);
                 }
+                updateGeometrySelections();
                 initCamera();
             }
             else
@@ -132,14 +134,6 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
-    _elementSelectionBox = new ng::ComboBox(_window, {"None"});
-    _elementSelectionBox->setChevronIcon(-1);
-    _elementSelectionBox->setCallback([this](int choice)
-    {
-        setElementSelection(choice);
-        updatePropertyEditor();
-    });
-
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
     editorButton->setFlags(ng::Button::ToggleButton);
     editorButton->setChangeCallback([this](bool state)
@@ -163,7 +157,24 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
     });
 
-    _materialFilename = std::string("documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx");
+    _geomLabel = new ng::Label(_window, "Geometry");
+
+    _geomSelectionBox = new ng::ComboBox(_window, {"None"});
+    _geomSelectionBox->setChevronIcon(-1);
+    _geomSelectionBox->setCallback([this](int choice)
+    {
+        setGeometrySelection(choice);
+    });
+
+    _elemLabel = new ng::Label(_window, "Element");
+
+    _elemSelectionBox = new ng::ComboBox(_window, {"None"});
+    _elemSelectionBox->setChevronIcon(-1);
+    _elemSelectionBox->setCallback([this](int choice)
+    {
+        setElementSelection(choice);
+        updatePropertyEditor();
+    });
 
     mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
     _imageHandler = mx::GLTextureHandler::create(stbImageLoader);
@@ -173,12 +184,15 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     mx::TinyObjLoaderPtr loader = mx::TinyObjLoader::create();
     _geometryHandler.addLoader(loader);
     _geometryHandler.loadGeometry(meshFilename);
+    updateGeometrySelections();
     initCamera();
 
     setResizeCallback([this](ng::Vector2i size)
     {
         _arcball.setSize(size);
     });
+
+    _materialFilename = std::string("documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx");
 
     try
     {
@@ -204,21 +218,58 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     performLayout();
 }
 
-void Viewer::updateElementSelections()
+void Viewer::updateGeometrySelections()
 {
-    _elementSelections.clear();
-    if (_contentDocument)
+    _geomSelections.clear();
+    for (mx::MeshPtr mesh : _geometryHandler.getMeshes())
     {
-        mx::findRenderableElements(_contentDocument, _elementSelections);
+        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
+        {
+            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
+            _geomSelections.push_back(part);
+        }
     }
 
     std::vector<std::string> items;
-    for (size_t i = 0; i < _elementSelections.size(); i++)
+    for (size_t i = 0; i < _geomSelections.size(); i++)
     {
-        items.push_back(_elementSelections[i]->getNamePath());
+        items.push_back(_geomSelections[i]->getIdentifier());
     }
-    _elementSelectionBox->setItems(items);
-    _elementSelectionBox->setVisible(items.size() > 1);
+    _geomSelectionBox->setItems(items);
+
+    _geomLabel->setVisible(items.size() > 1);
+    _geomSelectionBox->setVisible(items.size() > 1);
+
+    performLayout();
+}
+
+bool Viewer::setGeometrySelection(size_t index)
+{
+    if (index < _geomSelections.size())
+    {
+        _geomIndex = index;
+        return true;
+    }
+    return false;
+}
+
+void Viewer::updateElementSelections()
+{
+    _elemSelections.clear();
+    if (_contentDocument)
+    {
+        mx::findRenderableElements(_contentDocument, _elemSelections);
+    }
+
+    std::vector<std::string> items;
+    for (size_t i = 0; i < _elemSelections.size(); i++)
+    {
+        items.push_back(_elemSelections[i]->getNamePath());
+    }
+    _elemSelectionBox->setItems(items);
+
+    _elemLabel->setVisible(items.size() > 1);
+    _elemSelectionBox->setVisible(items.size() > 1);
 
     performLayout();
 }
@@ -226,9 +277,9 @@ void Viewer::updateElementSelections()
 bool Viewer::setElementSelection(size_t index)
 {
     mx::ElementPtr elem;
-    if (index < _elementSelections.size())
+    if (index < _elemSelections.size())
     {
-        elem = _elementSelections[index];
+        elem = _elemSelections[index];
     }
     if (elem)
     {
@@ -237,7 +288,7 @@ bool Viewer::setElementSelection(size_t index)
         {
             _material->bindImages(_imageHandler, _searchPath);
             _material->bindMesh(_geometryHandler);
-            _elementIndex = index;
+            _elemIndex = index;
             return true;
         }
     }
@@ -279,14 +330,18 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                mx::ElementPtr elem = _elementSelections.size() ? _elementSelections[0] : nullptr;
+                mx::ElementPtr elem = _elemSelections.size() ? _elemSelections[0] : nullptr;
                 if (elem)
                 {
-                    mx::HwShaderPtr hwShader = nullptr;
-                    StringPair source = generateSource(_searchPath, hwShader, elem);
-                    std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
-                    writeTextFile(source.first, _searchPath[0] / (baseName + "_vs.glsl"));
-                    writeTextFile(source.second, _searchPath[0]  / (baseName + "_ps.glsl"));
+                    mx::HwShaderPtr hwShader = generateSource(_searchPath, elem);
+                    if (hwShader)
+                    {
+                        std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
+                        std::string pixelShader = hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
+                        std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
+                        writeTextFile(vertexShader, _searchPath[0] / (baseName + "_vs.glsl"));
+                        writeTextFile(pixelShader, _searchPath[0]  / (baseName + "_ps.glsl"));
+                    }
                 }
             }
             catch (std::exception& e)
@@ -300,23 +355,23 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     // Allow left and right keys to cycle through the renderable elements
     if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
-        size_t elementCount = _elementSelections.size();
+        size_t elementCount = _elemSelections.size();
         if (elementCount > 1)
         {
             size_t newIndex = 0;
             if (key == GLFW_KEY_RIGHT)
             {
-                newIndex = (_elementIndex < elementCount - 1) ? _elementIndex + 1 : 0;
+                newIndex = (_elemIndex < elementCount - 1) ? _elemIndex + 1 : 0;
             }
             else
             {
-                newIndex = (_elementIndex > 0) ? _elementIndex - 1 : elementCount - 1;
+                newIndex = (_elemIndex > 0) ? _elemIndex - 1 : elementCount - 1;
             }
             try
             {
                 if (setElementSelection(newIndex))
                 {
-                    _elementSelectionBox->setSelectedIndex((int) newIndex);
+                    _elemSelectionBox->setSelectedIndex((int) newIndex);
                     updateElementSelections();
                     updatePropertyEditor();
                 }
@@ -334,7 +389,11 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (_geometryHandler.getMeshes().empty() || !_material || !_material->getShader())
+    if (_geometryHandler.getMeshes().empty() || !_material)
+    {
+        return;
+    }
+    if (!_material->bindShader())
     {
         return;
     }
@@ -342,7 +401,6 @@ void Viewer::drawContents()
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
-    _material->getShader()->bind();
     _material->bindViewInformation(world, view, proj);
     _material->bindImages(_imageHandler, _searchPath);
     _material->bindLights(_imageHandler, _searchPath, _envSamples);
