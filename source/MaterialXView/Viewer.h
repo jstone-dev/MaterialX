@@ -97,6 +97,7 @@ class Viewer : public ng::Screen
     mx::StringVec _libraryFolders;
     mx::FileSearchPath _searchPath;
     mx::StringMap _nodeRemap;
+    bool _usestdLib;
 
     mx::FilePath _materialFilename;
     int _envSamples;

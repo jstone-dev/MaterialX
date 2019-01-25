@@ -79,7 +79,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _nodeRemap(nodeRemap),
     _envSamples(DEFAULT_ENV_SAMPLES),
     _geomIndex(0),
-    _elemIndex(0)
+    _elemIndex(0),
+    _usestdLib(true)
 {
     _window = new ng::Window(this, "Viewer Options");
     _window->setPosition(ng::Vector2i(15, 15));
@@ -110,6 +111,13 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
+    ng::CheckBox* useStandardLib = new ng::CheckBox(_window, "Use Standard Library");
+    useStandardLib->setChecked(_usestdLib);
+    useStandardLib->setCallback([this](bool state)
+    {
+        _usestdLib = state;
+    });
+
     ng::Button* materialButton = new ng::Button(_window, "Load Material");
     materialButton->setCallback([this]()
     {
@@ -120,7 +128,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _materialFilename = filename;
             try
             {
-                _contentDocument = loadDocument(_materialFilename, _stdLib);
+                // Load document with default std lib if required.
+                _contentDocument = loadDocument(_materialFilename, _usestdLib ? _stdLib : nullptr);
                 remapNodes(_contentDocument, _nodeRemap);
                 updateElementSelections();
                 setElementSelection(0);

@@ -14,7 +14,10 @@ mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLi
 {
     mx::DocumentPtr doc = mx::createDocument();
     mx::readFromXmlFile(doc, filePath);
-    doc->importLibrary(stdLib);
+    if (stdLib)
+    {
+        doc->importLibrary(stdLib);
+    }
 
     return doc;
 }
