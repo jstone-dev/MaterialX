@@ -258,6 +258,11 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
 
     HwShader& shader = *shaderPtr;
 
+    // Turn on fixed float formatting to make sure float values are
+    // emitted with a decimal point and not as integers, and to avoid
+    // any scientific notation which isn't supported by all OpenGL targets.
+    Value::ScopedFloatFormatting fmt(Value::FloatFormatFixed);
+
     //
     // Emit code for vertex shader stage
     //
@@ -278,7 +283,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!vsConstants.empty())
     {
         shader.addComment("Constant block: " + vsConstants.name);
-        emitVariableBlock(vsConstants, _syntax->getConstantQualifier(), shader);
+        emitVariableBlock(vsConstants, _syntax->getConstantQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     // Add all private uniforms
@@ -286,7 +291,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!vsPrivateUniforms.empty())
     {
         shader.addComment("Uniform block: " + vsPrivateUniforms.name);
-        emitVariableBlock(vsPrivateUniforms, _syntax->getUniformQualifier(), shader);
+        emitVariableBlock(vsPrivateUniforms, _syntax->getUniformQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     // Add any public uniforms
@@ -294,7 +299,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!vsPublicUniforms.empty())
     {
         shader.addComment("Uniform block: " + vsPublicUniforms.name);
-        emitVariableBlock(vsPublicUniforms, _syntax->getUniformQualifier(), shader);
+        emitVariableBlock(vsPublicUniforms, _syntax->getUniformQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     // Add all app data inputs
@@ -322,7 +327,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
             shader.addLine(type + " " + output->name);
         }
         shader.endScope(false, false);
-        shader.addStr(" " + vertexDataBlock.instance + ";\n");
+        shader.addStr(" " + vertexDataBlock.instance + SEMICOLON_NEWLINE);
         shader.newLine();
     }
 
@@ -358,7 +363,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!psConstants.empty())
     {
         shader.addComment("Constant block: " + psConstants.name);
-        emitVariableBlock(psConstants, _syntax->getConstantQualifier(), shader);
+        emitVariableBlock(psConstants, _syntax->getConstantQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     // Add all private uniforms
@@ -366,7 +371,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!psPrivateUniforms.empty())
     {
         shader.addComment("Uniform block: " + psPrivateUniforms.name);
-        emitVariableBlock(psPrivateUniforms, _syntax->getUniformQualifier(), shader);
+        emitVariableBlock(psPrivateUniforms, _syntax->getUniformQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     // Add all public uniforms
@@ -374,7 +379,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
     if (!psPublicUniforms.empty())
     {
         shader.addComment("Uniform block: " + psPublicUniforms.name);
-        emitVariableBlock(psPublicUniforms, _syntax->getUniformQualifier(), shader);
+        emitVariableBlock(psPublicUniforms, _syntax->getUniformQualifier(), SEMICOLON_NEWLINE, shader);
     }
 
     bool lighting = shader.hasClassification(ShaderNode::Classification::SHADER | ShaderNode::Classification::SURFACE) ||
@@ -408,7 +413,7 @@ ShaderPtr GlslShaderGenerator::generate(const string& shaderName, ElementPtr ele
             shader.addLine(type + " " + input->name);
         }
         shader.endScope(false, false);
-        shader.addStr(" " + vertexDataBlock.instance + ";\n");
+        shader.addStr(" " + vertexDataBlock.instance + SEMICOLON_NEWLINE);
         shader.newLine();
     }
 
@@ -579,7 +584,7 @@ void GlslShaderGenerator::emitFinalOutput(Shader& shader) const
     }
 }
 
-void GlslShaderGenerator::addNodeContextIDs(ShaderNode* node) const
+void GlslShaderGenerator::addContextIDs(ShaderNode* node) const
 {
     if (node->hasClassification(ShaderNode::Classification::BSDF))
     {
@@ -608,7 +613,7 @@ void GlslShaderGenerator::addNodeContextIDs(ShaderNode* node) const
     }
     else
     {
-        ParentClass::addNodeContextIDs(node);
+        ParentClass::addContextIDs(node);
     }
 }
 
@@ -669,7 +674,7 @@ void GlslShaderGenerator::emitBsdfNodes(const ShaderNode& shaderNode, int bsdfCo
             }
             else
             {
-                // Node is not defined in this context so just 
+                // Node is not defined in this context so just
                 // emit the output variable set to default value.
                 shader.beginLine();
                 emitOutput(context, node->getOutput(), true, true, shader);
@@ -741,7 +746,7 @@ void GlslShaderGenerator::emitVariable(const Shader::Variable& variable, const s
     if (variable.type == Type::FILENAME)
     {
         // Samplers must always be uniforms
-        shader.addLine("uniform sampler2D " + variable.name);
+        shader.addStr("uniform sampler2D " + variable.name);
     }
     else
     {
@@ -763,7 +768,7 @@ void GlslShaderGenerator::emitVariable(const Shader::Variable& variable, const s
         {
             line += " = " + _syntax->getDefaultValue(variable.type, true);
         }
-        shader.addLine(line);
+        shader.addStr(line);
     }
 }
 

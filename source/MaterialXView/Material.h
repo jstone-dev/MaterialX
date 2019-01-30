@@ -21,44 +21,91 @@ using GLShaderPtr = std::shared_ptr<ng::GLShader>;
 
 using StringPair = std::pair<std::string, std::string>;
 
+class MaterialSubset
+{
+  public:
+    mx::TypedElementPtr elem;
+    std::string udim;
+};
+
 class Material
 {
   public:
-    static MaterialPtr generateMaterial(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
+    Material() :
+        _subsetIndex(0)
+    {
+    }
+    ~Material() { }
 
-    /// Bind mesh given a handler.
-    void bindMesh(const mx::GeometryHandler& handler);
+    /// Load a new content document.
+    void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib, const mx::StringMap& nodeRemap);
+
+    /// Return the content document.
+    mx::DocumentPtr getDocument()
+    {
+        return _doc;
+    }
+
+    /// Return the vector of material subsets.
+    const std::vector<MaterialSubset>& getSubsets()
+    {
+        return _subsets;
+    }
+
+    /// Return the current material subset.
+    const MaterialSubset& getCurrentSubset()
+    {
+        return _subsets[_subsetIndex];
+    }
+
+    /// Set the current material subset index.
+    void setSubsetIndex(size_t index)
+    {
+        _subsetIndex = index;
+    }
+
+    /// Return the current material subset index.
+    size_t getSubsetIndex()
+    {
+        return _subsetIndex;
+    }
+
+    /// Generate a shader from the given inputs.
+    bool generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
 
     /// Return the underlying OpenGL shader.
-    GLShaderPtr getShader() const { return _glShader; }
-    
-    /// Bind the underlying OpenGL shader, returning true upon success.
-    bool bindShader();
+    GLShaderPtr getShader() const
+    {
+        return _glShader;
+    }
 
+    /// Return true if this material has transparency.
+    bool hasTransparency() const
+    {
+        return _hasTransparency;
+    }
+    
     /// Bind viewing information for this material.
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
 
-    /// Bind image to shader.
-    bool bindImage(const std::string& filename, const std::string& uniformName,
-                   mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc);
-
     /// Bind all images for this material.
-    void bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath);
+    void bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, const std::string& udim);
+
+    /// Bind a single image.
+    bool bindImage(std::string filename, const std::string& uniformName, mx::GLTextureHandlerPtr imageHandler,
+        mx::ImageDesc& desc, const std::string& udim = mx::EMPTY_STRING);
 
     /// Bind lights to shader.
     void bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, int envSamples);
 
-    /// Return if the shader is has transparency.
-    bool hasTransparency() const { return _hasTransparency; }
+    /// Bind the given mesh to this material.
+    void bindMesh(mx::MeshPtr mesh) const;
 
-    /// Draw the mesh given a handler.
-    void draw(const mx::GeometryHandler& handler) const;
+    /// Bind a mesh partition to this material.
+    void bindPartition(mx::MeshPartitionPtr part) const;
 
-    /// List of associated geometry for this material.
-    mx::StringVec& getGeometryList()
-    {
-        return _geometryList;
-    }
+    /// Draw the given mesh partition.
+    void drawPartition(mx::MeshPartitionPtr part) const;
 
     // Return the block of public uniforms for this material.
     const mx::Shader::VariableBlock* getPublicUniforms() const;
@@ -67,33 +114,15 @@ class Material
     mx::Shader::Variable* findUniform(const std::string& path) const;
 
   protected:
-    Material(GLShaderPtr glShader, mx::HwShaderPtr hwShader) :
-        _glShader(glShader),
-        _hwShader(hwShader),
-        _hasTransparency(hwShader ? hwShader->hasTransparency() : false)
-    {
-    }
-
-    // Utility to set associated geometry for the material.  For now it
-    // assigns all partitions to the the material.
-    void assignPartitionsToMaterial(const mx::GeometryHandler handler);
-
-    /// Bind mesh streams given a mesh.
-    void bindMeshStreams(mx::MeshPtr mesh) const;
-
-    /// Bind mesh partition.
-    void bindPartition(mx::MeshPartitionPtr part) const;
-
+    mx::DocumentPtr _doc;
     GLShaderPtr _glShader;
     mx::HwShaderPtr _hwShader;
+    std::vector<MaterialSubset> _subsets;
+    size_t _subsetIndex;
     bool _hasTransparency;
-    mx::StringVec _geometryList;
 };
 
-mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib);
 mx::DocumentPtr loadLibraries(const mx::StringVec& libraryNames, const mx::FileSearchPath& searchPath);
-void remapNodes(mx::DocumentPtr& doc, const mx::StringMap& nodeRemap);
-
 mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
 
 #endif // MATERIALXVIEW_MATERIAL_H

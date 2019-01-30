@@ -88,12 +88,14 @@ bool stbImageLoader::acquireImage(const std::string& fileName,
     std::string extension = (fileName.substr(fileName.find_last_of(".") + 1));
     if (extension == HDR_EXTENSION)
     {
+        stbi_set_flip_vertically_on_load(false);
         buffer = stbi_loadf(fileName.c_str(), &iwidth, &iheight, &ichannelCount, REQUIRED_CHANNEL_COUNT);
         imageDesc.floatingPoint = true;
     }
     // Otherwise use fixed point reader
     else
     {
+        stbi_set_flip_vertically_on_load(true);
         buffer = stbi_load(fileName.c_str(), &iwidth, &iheight, &ichannelCount, REQUIRED_CHANNEL_COUNT);
         imageDesc.floatingPoint = false;
     }

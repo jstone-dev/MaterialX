@@ -10,15 +10,6 @@
 using MatrixXfProxy = Eigen::Map<const ng::MatrixXf>;
 using MatrixXuProxy = Eigen::Map<const ng::MatrixXu>;
 
-mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib)
-{
-    mx::DocumentPtr doc = mx::createDocument();
-    mx::readFromXmlFile(doc, filePath);
-    doc->importLibrary(stdLib);
-
-    return doc;
-}
-
 mx::DocumentPtr loadLibraries(const mx::StringVec& libraryFolders, const mx::FileSearchPath& searchPath)
 {
     mx::DocumentPtr doc = mx::createDocument();
@@ -40,28 +31,6 @@ mx::DocumentPtr loadLibraries(const mx::StringVec& libraryFolders, const mx::Fil
         }
     }
     return doc;
-}
-
-void remapNodes(mx::DocumentPtr& doc, const mx::StringMap& nodeRemap)
-{
-    for (mx::ElementPtr elem : doc->traverseTree())
-    {
-        mx::NodePtr node = elem->asA<mx::Node>();
-        mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
-        if (node && nodeRemap.count(node->getCategory()))
-        {
-            node->setCategory(nodeRemap.at(node->getCategory()));
-        }
-        if (shaderRef)
-        {
-            mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
-            if (nodeDef && nodeRemap.count(nodeDef->getNodeString()))
-            {
-                shaderRef->setNodeString(nodeRemap.at(nodeDef->getNodeString()));
-                shaderRef->removeAttribute(mx::ShaderRef::NODE_DEF_ATTRIBUTE);
-            }
-        }
-    }
 }
 
 mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
@@ -91,69 +60,97 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
 }
 
 //
-// Viewer methods
+// Material methods
 //
 
-MaterialPtr Material::generateMaterial(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
+void Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib, const mx::StringMap& nodeRemap)
 {
-    mx::HwShaderPtr hwShader = generateSource(searchPath, elem);
-    if (!hwShader)
+    // Load the given document.
+    _doc = mx::createDocument();
+    mx::readFromXmlFile(_doc, filePath);
+
+    // Import the given standard library.
+    mx::CopyOptions copyOptions;
+    copyOptions.skipDuplicateElements = true;
+    _doc->importLibrary(stdLib, &copyOptions);
+
+    // Remap node names if requested.
+    for (mx::ElementPtr elem : _doc->traverseTree())
     {
-        return nullptr;
-    }
-
-    std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
-    std::string pixelShader = hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
-
-    GLShaderPtr glShader = std::make_shared<ng::GLShader>();
-    glShader->init(elem->getNamePath(), vertexShader, pixelShader);
-    return MaterialPtr(new Material(glShader, hwShader));
-}
-
-void Material::assignPartitionsToMaterial(const mx::GeometryHandler handler)
-{
-    _geometryList.clear();
-    for (auto mesh : handler.getMeshes())
-    {
-        for (size_t p = 0; p < mesh->getPartitionCount(); p++)
+        mx::NodePtr node = elem->asA<mx::Node>();
+        mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
+        if (node && nodeRemap.count(node->getCategory()))
         {
-            _geometryList.push_back(mesh->getPartition(p)->getIdentifier());
+            node->setCategory(nodeRemap.at(node->getCategory()));
         }
-    }
-}
-
-void Material::bindMesh(const mx::GeometryHandler& handler)
-{
-    assignPartitionsToMaterial(handler);
-
-    bool haveMaterialGeometry = !_geometryList.empty();
-    for (auto mesh : handler.getMeshes())
-    {
-        if (!haveMaterialGeometry)
+        if (shaderRef)
         {
-            bindMeshStreams(mesh);
-            continue;
-        }
-        bool matchMeshName = std::find(_geometryList.begin(), _geometryList.end(), mesh->getIdentifier()) != _geometryList.end();
-        if (matchMeshName)
-        {
-            bindMeshStreams(mesh);
-            continue;
-        }
-        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
-        {
-            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-            bool matchPartName = std::find(_geometryList.begin(), _geometryList.end(), part->getIdentifier()) != _geometryList.end();
-            if (matchPartName)
+            mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
+            if (nodeDef && nodeRemap.count(nodeDef->getNodeString()))
             {
-                bindMeshStreams(mesh);
-                break;
+                shaderRef->setNodeString(nodeRemap.at(nodeDef->getNodeString()));
+                shaderRef->removeAttribute(mx::ShaderRef::NODE_DEF_ATTRIBUTE);
             }
         }
     }
+
+    // Remove unimplemented shader nodedefs.
+    std::vector<mx::NodeDefPtr> nodeDefs = _doc->getNodeDefs();
+    for (mx::NodeDefPtr nodeDef : nodeDefs)
+    {
+        if (nodeDef->getType() == mx::SURFACE_SHADER_TYPE_STRING &&
+            !nodeDef->getImplementation())
+        {
+            _doc->removeNodeDef(nodeDef->getName());
+        }
+    }
+
+    // Generate material subsets.
+    _subsets.clear();
+    std::vector<mx::TypedElementPtr> elems;
+    mx::findRenderableElements(_doc, elems);
+    mx::ValuePtr udimSetValue = _doc->getGeomAttrValue("udimset");
+    for (mx::TypedElementPtr elem : elems)
+    {
+        if (udimSetValue && udimSetValue->isA<mx::StringVec>())
+        {
+            for (const std::string& udim : udimSetValue->asA<mx::StringVec>())
+            {
+                MaterialSubset subset;
+                subset.elem = elem;
+                subset.udim = udim;
+                _subsets.push_back(subset);
+            }
+        }
+        else
+        {
+            MaterialSubset subset;
+            subset.elem = elem;
+            _subsets.push_back(subset);
+        }
+    }
 }
 
-void Material::bindMeshStreams(const mx::MeshPtr mesh) const
+bool Material::generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
+{
+    _hwShader = generateSource(searchPath, elem);
+    if (!_hwShader)
+    {
+        return false;
+    }
+
+    std::string vertexShader = _hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
+    std::string pixelShader = _hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
+
+    _glShader = std::make_shared<ng::GLShader>();
+    _glShader->init(elem->getNamePath(), vertexShader, pixelShader);
+
+    _hasTransparency = _hwShader->hasTransparency();
+
+    return true;
+}
+
+void Material::bindMesh(const mx::MeshPtr mesh) const
 {
     if (!mesh || !_glShader)
     {
@@ -203,20 +200,9 @@ void Material::bindPartition(mx::MeshPartitionPtr part) const
     _glShader->uploadIndices(indices);
 }
 
-bool Material::bindShader()
-{
-    if (!_glShader)
-    {
-        return false;
-    }
-
-    _glShader->bind();
-    return true;
-}
-
 void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj)
 {
-    if (!bindShader())
+    if (!_glShader)
     {
         return;
     }
@@ -239,38 +225,15 @@ void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44
     }
 }
 
-bool Material::bindImage(const std::string& filename, const std::string& uniformName, 
-                         mx::GLTextureHandlerPtr imageHandler, mx::ImageDesc& desc)
+void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& searchPath, const std::string& udim)
 {
-    if (!bindShader())
-    {
-        return false;
-    }
-
-    // Acquire the given image.
-    std::array<float, 4> defaultColor{0, 0, 0, 1};
-    if (!imageHandler->acquireImage(filename, desc, true, &defaultColor))
-    {
-        std::cerr << "Failed to load image: " << filename << std::endl;
-        return false;
-    }
-
-    // Bind the image and set its sampling properties.
-    _glShader->setUniform(uniformName, desc.resourceId);
-    mx::ImageSamplingProperties samplingProperties;
-    imageHandler->bindImage(filename, samplingProperties);
-
-    return true;
-}
-
-void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& searchPath)
-{
-    if (!bindShader())
+    if (!_glShader)
     {
         return;
     }
 
-    const MaterialX::Shader::VariableBlock publicUniforms = _hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE, MaterialX::Shader::PUBLIC_UNIFORMS);
+    const MaterialX::Shader::VariableBlock publicUniforms = _hwShader->getUniformBlock(MaterialX::Shader::PIXEL_STAGE,
+        MaterialX::Shader::PUBLIC_UNIFORMS);
     for (auto uniform : publicUniforms.variableOrder)
     {
         if (uniform->type != MaterialX::Type::FILENAME)
@@ -285,13 +248,44 @@ void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
         }
 
         mx::ImageDesc desc;
-        bindImage(filename, uniformName, imageHandler, desc);
+        bindImage(filename, uniformName, imageHandler, desc, udim);
     }
+}
+
+bool Material::bindImage(std::string filename, const std::string& uniformName, mx::GLTextureHandlerPtr imageHandler,
+    mx::ImageDesc& desc, const std::string& udim)
+{
+    if (!_glShader)
+    {
+        return false;
+    }
+
+    // Apply udim string if specified.
+    if (!udim.empty())
+    {
+        mx::StringMap map;
+        map[mx::UDIM_TOKEN] = udim;
+        filename = mx::replaceSubstrings(filename, map);
+    }
+
+    // Acquire the given image.
+    if (!imageHandler->acquireImage(filename, desc, true, nullptr))
+    {
+        std::cerr << "Failed to load image: " << filename << std::endl;
+        return false;
+    }
+
+    // Bind the image and set its sampling properties.
+    _glShader->setUniform(uniformName, desc.resourceId);
+    mx::ImageSamplingProperties samplingProperties;
+    imageHandler->bindImage(filename, samplingProperties);
+
+    return true;
 }
 
 void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, int envSamples)
 {
-    if (!bindShader())
+    if (!_glShader)
     {
         return;
     }
@@ -326,23 +320,10 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
     }
 }
 
-void Material::draw(const mx::GeometryHandler& handler) const
+void Material::drawPartition(mx::MeshPartitionPtr part) const
 {
-    bool nothingToMatch = _geometryList.empty();
-    for (auto mesh : handler.getMeshes())
-    {
-        bool meshMatches = nothingToMatch || (std::find(_geometryList.begin(), _geometryList.end(), mesh->getIdentifier()) != _geometryList.end());
-        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
-        {
-            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-            bool partMatches = meshMatches || (std::find(_geometryList.begin(), _geometryList.end(), part->getIdentifier()) != _geometryList.end());
-            if (partMatches)
-            {
-                bindPartition(part);
-                _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t)part->getFaceCount());
-            }
-        }
-    }
+    bindPartition(part);
+    _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) part->getFaceCount());
 }
 
 const MaterialX::Shader::VariableBlock* Material::getPublicUniforms() const

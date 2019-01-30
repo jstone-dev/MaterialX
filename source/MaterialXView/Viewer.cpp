@@ -63,8 +63,12 @@ void writeTextFile(const std::string& text, const std::string& filePath)
 
 Viewer::Viewer(const mx::StringVec& libraryFolders,
                const mx::FileSearchPath& searchPath,
-               const mx::StringMap& nodeRemap) :
-    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView"),
+               const mx::StringMap& nodeRemap,
+               int multiSampleCount) :
+    ng::Screen(ng::Vector2i(1280, 960), "MaterialXView",
+        true, false,
+        8, 8, 24, 8,
+        multiSampleCount),
     _eye(0.0f, 0.0f, 5.0f),
     _up(0.0f, 1.0f, 0.0f),
     _zoom(1.0f),
@@ -78,14 +82,14 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _searchPath(searchPath),
     _nodeRemap(nodeRemap),
     _envSamples(DEFAULT_ENV_SAMPLES),
-    _geomIndex(0),
-    _elemIndex(0)
+    _geomIndex(0)
 {
     _window = new ng::Window(this, "Viewer Options");
     _window->setPosition(ng::Vector2i(15, 15));
     _window->setLayout(new ng::GroupLayout());
 
     ng::Button* meshButton = new ng::Button(_window, "Load Mesh");
+    meshButton->setIcon(ENTYPO_ICON_FOLDER);
     meshButton->setCallback([this]()
     {
         mProcessEvents = false;
@@ -95,11 +99,17 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _geometryHandler.clearGeometry();
             if (_geometryHandler.loadGeometry(filename))
             {
-                if (_material)
-                {
-                    _material->bindMesh(_geometryHandler);
-                }
                 updateGeometrySelections();
+                _materials.resize(_geomSelections.size());
+                for (size_t i = 1; i < _geomSelections.size(); i++)
+                {
+                    _materials[i] = std::make_shared<Material>();
+                    *_materials[i] = *_materials[0];
+                }
+                if (getCurrentMaterial())
+                {
+                    getCurrentMaterial()->bindMesh(_geometryHandler.getMeshes()[0]);
+                }
                 initCamera();
             }
             else
@@ -111,6 +121,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     });
 
     ng::Button* materialButton = new ng::Button(_window, "Load Material");
+    materialButton->setIcon(ENTYPO_ICON_FOLDER);
     materialButton->setCallback([this]()
     {
         mProcessEvents = false;
@@ -120,11 +131,10 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _materialFilename = filename;
             try
             {
-                _contentDocument = loadDocument(_materialFilename, _stdLib);
-                remapNodes(_contentDocument, _nodeRemap);
-                updateElementSelections();
-                setElementSelection(0);
-                updatePropertyEditor();
+                _materials[_geomIndex] = std::make_shared<Material>();
+                getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
+                updateSubsetSelections();
+                setSubsetSelection(0);
             }
             catch (std::exception& e)
             {
@@ -166,14 +176,13 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         setGeometrySelection(choice);
     });
 
-    _elemLabel = new ng::Label(_window, "Element");
+    _materialLabel = new ng::Label(_window, "Material");
 
-    _elemSelectionBox = new ng::ComboBox(_window, {"None"});
-    _elemSelectionBox->setChevronIcon(-1);
-    _elemSelectionBox->setCallback([this](int choice)
+    _subsetSelectionBox = new ng::ComboBox(_window, {"None"});
+    _subsetSelectionBox->setChevronIcon(-1);
+    _subsetSelectionBox->setCallback([this](int choice)
     {
-        setElementSelection(choice);
-        updatePropertyEditor();
+        setSubsetSelection(choice);
     });
 
     mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
@@ -193,11 +202,11 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     });
 
     _materialFilename = std::string("documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx");
+    _materials.push_back(std::make_shared<Material>());
 
     try
     {
-        _contentDocument = loadDocument(_materialFilename, _stdLib);
-        remapNodes(_contentDocument, _nodeRemap);
+        getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
     }
     catch (std::exception& e)
     {
@@ -205,8 +214,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     }
     try
     {
-        updateElementSelections();
-        setElementSelection(0);
+        updateSubsetSelections();
+        setSubsetSelection(0);
     }
     catch (std::exception& e)
     {
@@ -221,24 +230,30 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 void Viewer::updateGeometrySelections()
 {
     _geomSelections.clear();
-    for (mx::MeshPtr mesh : _geometryHandler.getMeshes())
+    mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
+    for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
     {
-        for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
-        {
-            mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-            _geomSelections.push_back(part);
-        }
+        mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
+        _geomSelections.push_back(part);
     }
 
     std::vector<std::string> items;
     for (size_t i = 0; i < _geomSelections.size(); i++)
     {
-        items.push_back(_geomSelections[i]->getIdentifier());
+        std::string geomName = _geomSelections[i]->getIdentifier();
+        mx::StringVec geomSplit = mx::splitString(geomName, ":");
+        if (!geomSplit.empty() && !geomSplit[geomSplit.size() - 1].empty())
+        {
+            geomName = geomSplit[geomSplit.size() - 1];
+        }
+
+        items.push_back(geomName);
     }
     _geomSelectionBox->setItems(items);
 
     _geomLabel->setVisible(items.size() > 1);
     _geomSelectionBox->setVisible(items.size() > 1);
+    _geomIndex = 0;
 
     performLayout();
 }
@@ -248,47 +263,52 @@ bool Viewer::setGeometrySelection(size_t index)
     if (index < _geomSelections.size())
     {
         _geomIndex = index;
+        updateSubsetSelections();
+        setSubsetSelection(getCurrentMaterial()->getSubsetIndex());
         return true;
     }
     return false;
 }
 
-void Viewer::updateElementSelections()
+void Viewer::updateSubsetSelections()
 {
-    _elemSelections.clear();
-    if (_contentDocument)
-    {
-        mx::findRenderableElements(_contentDocument, _elemSelections);
-    }
-
     std::vector<std::string> items;
-    for (size_t i = 0; i < _elemSelections.size(); i++)
+    for (const MaterialSubset& subset : getCurrentMaterial()->getSubsets())
     {
-        items.push_back(_elemSelections[i]->getNamePath());
+        std::string displayName = subset.elem->getNamePath();
+        if (!subset.udim.empty())
+        {
+            displayName += " (" + subset.udim + ")";
+        }
+        items.push_back(displayName);
     }
-    _elemSelectionBox->setItems(items);
+    _subsetSelectionBox->setItems(items);
 
-    _elemLabel->setVisible(items.size() > 1);
-    _elemSelectionBox->setVisible(items.size() > 1);
+    _materialLabel->setVisible(items.size() > 1);
+    _subsetSelectionBox->setVisible(items.size() > 1);
 
     performLayout();
 }
 
-bool Viewer::setElementSelection(size_t index)
+bool Viewer::setSubsetSelection(size_t index)
 {
-    mx::ElementPtr elem;
-    if (index < _elemSelections.size())
+    MaterialPtr material = getCurrentMaterial();
+    if (index >= material->getSubsets().size())
     {
-        elem = _elemSelections[index];
+        return false;
     }
-    if (elem)
+
+    getCurrentMaterial()->setSubsetIndex(index);
+
+    const MaterialSubset& subset = material->getCurrentSubset();
+    if (subset.elem)
     {
-        _material = Material::generateMaterial(_searchPath, elem);
-        if (_material)
+        _subsetSelectionBox->setSelectedIndex((int) index);
+        if (material->generateShader(_searchPath, subset.elem))
         {
-            _material->bindImages(_imageHandler, _searchPath);
-            _material->bindMesh(_geometryHandler);
-            _elemIndex = index;
+            material->bindImages(_imageHandler, _searchPath, subset.udim);
+            material->bindMesh(_geometryHandler.getMeshes()[0]);
+            updatePropertyEditor();
             return true;
         }
     }
@@ -305,8 +325,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     {
         try
         {
-            _contentDocument = loadDocument(_materialFilename, _stdLib);
-            remapNodes(_contentDocument, _nodeRemap);
+            getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
         }
         catch (std::exception& e)
         {
@@ -314,8 +333,8 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         }
         try
         {
-            updateElementSelections();
-            setElementSelection(0);
+            updateSubsetSelections();
+            setSubsetSelection(getCurrentMaterial()->getSubsetIndex());
             updatePropertyEditor();
         }
         catch (std::exception& e)
@@ -330,10 +349,11 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                mx::ElementPtr elem = _elemSelections.size() ? _elemSelections[0] : nullptr;
-                if (elem)
+                MaterialPtr material = getCurrentMaterial();
+                MaterialSubset subset = material->getCurrentSubset();
+                if (subset.elem)
                 {
-                    mx::HwShaderPtr hwShader = generateSource(_searchPath, elem);
+                    mx::HwShaderPtr hwShader = generateSource(_searchPath, subset.elem);
                     if (hwShader)
                     {
                         std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
@@ -355,24 +375,25 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     // Allow left and right keys to cycle through the renderable elements
     if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
-        size_t elementCount = _elemSelections.size();
-        if (elementCount > 1)
+        size_t subsetCount = getCurrentMaterial()->getSubsets().size();
+        size_t subsetIndex = getCurrentMaterial()->getSubsetIndex();
+        if (subsetCount > 1)
         {
             size_t newIndex = 0;
             if (key == GLFW_KEY_RIGHT)
             {
-                newIndex = (_elemIndex < elementCount - 1) ? _elemIndex + 1 : 0;
+                newIndex = (subsetIndex < subsetCount - 1) ? subsetIndex + 1 : 0;
             }
             else
             {
-                newIndex = (_elemIndex > 0) ? _elemIndex - 1 : elementCount - 1;
+                newIndex = (subsetIndex > 0) ? subsetIndex - 1 : subsetCount - 1;
             }
             try
             {
-                if (setElementSelection(newIndex))
+                if (setSubsetSelection(newIndex))
                 {
-                    _elemSelectionBox->setSelectedIndex((int) newIndex);
-                    updateElementSelections();
+                    _subsetSelectionBox->setSelectedIndex((int) newIndex);
+                    updateSubsetSelections();
                     updatePropertyEditor();
                 }
             }
@@ -389,11 +410,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (_geometryHandler.getMeshes().empty() || !_material)
-    {
-        return;
-    }
-    if (!_material->bindShader())
+    if (_geomSelections.empty() || !getCurrentMaterial())
     {
         return;
     }
@@ -401,24 +418,34 @@ void Viewer::drawContents()
     mx::Matrix44 world, view, proj;
     computeCameraMatrices(world, view, proj);
 
-    _material->bindViewInformation(world, view, proj);
-    _material->bindImages(_imageHandler, _searchPath);
-    _material->bindLights(_imageHandler, _searchPath, _envSamples);
-
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glEnable(GL_FRAMEBUFFER_SRGB);
-    if (_material->hasTransparency())
-    {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-    else
-    {
-        glDisable(GL_BLEND);
-    }
 
-    _material->draw(_geometryHandler);
+    GLShaderPtr lastBoundShader;
+    for (size_t i = 0; i < _geomSelections.size(); i++)
+    {
+        MaterialPtr material = _materials[i];
+        GLShaderPtr shader = material->getShader();
+        if (shader && shader != lastBoundShader)
+        {
+            shader->bind();
+            lastBoundShader = shader;
+            if (material->hasTransparency())
+            {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
+            else
+            {
+                glDisable(GL_BLEND);
+            }
+            material->bindViewInformation(world, view, proj);
+            material->bindLights(_imageHandler, _searchPath, _envSamples);
+        }
+        material->bindImages(_imageHandler, _searchPath, material->getCurrentSubset().udim);
+        material->drawPartition(_geomSelections[i]);
+    }
 
     glDisable(GL_BLEND);
     glDisable(GL_FRAMEBUFFER_SRGB);
@@ -454,8 +481,9 @@ bool Viewer::mouseMotionEvent(const ng::Vector2i& p,
         computeCameraMatrices(world, view, proj);
         mx::Matrix44 worldView = view * world;
 
-        mx::Vector3 boxMin = _geometryHandler.getMinimumBounds();
-        mx::Vector3 boxMax = _geometryHandler.getMaximumBounds();
+        mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
+        mx::Vector3 boxMin = mesh->getMinimumBounds();
+        mx::Vector3 boxMax = mesh->getMaximumBounds();
         mx::Vector3 sphereCenter = (boxMax + boxMin) / 2.0;
 
         float zval = ng::project(ng::Vector3f(sphereCenter.data()),
@@ -516,8 +544,9 @@ void Viewer::initCamera()
     _arcball = ng::Arcball();
     _arcball.setSize(mSize);
 
-    mx::Vector3 boxMin = _geometryHandler.getMinimumBounds();
-    mx::Vector3 boxMax = _geometryHandler.getMaximumBounds();
+    mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
+    mx::Vector3 boxMin = mesh->getMinimumBounds();
+    mx::Vector3 boxMax = mesh->getMaximumBounds();
     mx::Vector3 sphereCenter = (boxMax + boxMin) / 2.0;
     float sphereRadius = (sphereCenter - boxMin).getMagnitude();
     _modelZoom = 2.0f / sphereRadius;

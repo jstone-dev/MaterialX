@@ -15,6 +15,7 @@ int main(int argc, char* const argv[])
     mx::StringVec libraryFolders = { "stdlib", "pbrlib", "stdlib/genglsl", "pbrlib/genglsl" };
     mx::FileSearchPath searchPath;
     mx::StringMap nodeRemap;
+    int multiSampleCount = 0;
     for (size_t i = 0; i < tokens.size(); i++)
     {
         const std::string& token = tokens[i];
@@ -35,6 +36,10 @@ int main(int argc, char* const argv[])
                 nodeRemap[vec[0]] = vec[1];
             }
         }
+        if (token == "--msaa" && !nextToken.empty())
+        {
+            multiSampleCount = std::stoi(nextToken);
+        }
     }
     searchPath.append(mx::FilePath::getCurrentPath() / mx::FilePath("documents/Libraries"));
 
@@ -42,9 +47,9 @@ int main(int argc, char* const argv[])
     {
         ng::init();
         {
-            ng::ref<Viewer> viewer = new Viewer(libraryFolders, searchPath, nodeRemap);
+            ng::ref<Viewer> viewer = new Viewer(libraryFolders, searchPath, nodeRemap, multiSampleCount);
             viewer->setVisible(true);
-            ng::mainloop(-1);
+            ng::mainloop();
         }
     
         ng::shutdown();

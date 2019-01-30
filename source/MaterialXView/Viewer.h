@@ -13,7 +13,8 @@ class Viewer : public ng::Screen
   public:
     Viewer(const mx::StringVec& libraryFolders,
            const mx::FileSearchPath& searchPath,
-           const mx::StringMap& nodeRemap);
+           const mx::StringMap& nodeRemap,
+           int multiSampleCount);
     ~Viewer() { }
 
     void drawContents() override;
@@ -23,29 +24,19 @@ class Viewer : public ng::Screen
     bool mouseMotionEvent(const ng::Vector2i& p, const ng::Vector2i& rel, int button, int modifiers) override;
     bool mouseButtonEvent(const ng::Vector2i& p, int button, bool down, int modifiers) override;
 
-    mx::ElementPtr getSelectedElement() const
-    {
-        mx::ElementPtr element = nullptr;
-        if (_elemIndex < _elemSelections.size())
-        {
-            element = _elemSelections[_elemIndex];
-        }
-        return element;
-    }
-
-    MaterialPtr getMaterial() const
-    {
-        return _material;
-    }
-
-    mx::DocumentPtr getContentDocument() const
-    {
-        return _contentDocument;
-    }
-
     ng::Window* getWindow() const
     {
         return _window;
+    }
+
+    MaterialPtr getCurrentMaterial() const
+    {
+        return _materials[_geomIndex];
+    }
+
+    mx::DocumentPtr getCurrentDocument() const
+    {
+        return getCurrentMaterial()->getDocument();
     }
 
     const mx::FileSearchPath& getSearchPath() const
@@ -67,17 +58,18 @@ class Viewer : public ng::Screen
     bool setGeometrySelection(size_t index);
     void updateGeometrySelections();
 
-    bool setElementSelection(size_t index);
-    void updateElementSelections();
+    bool setSubsetSelection(size_t index);
+    void updateSubsetSelections();
 
     void updatePropertyEditor();
 
   private:
     ng::Window* _window;
     ng::Arcball _arcball;
+    PropertyEditor _propertyEditor;
 
     mx::GeometryHandler _geometryHandler;
-    MaterialPtr _material;
+    std::vector<MaterialPtr> _materials;
 
     mx::Vector3 _eye;
     mx::Vector3 _center;
@@ -101,7 +93,6 @@ class Viewer : public ng::Screen
     mx::FilePath _materialFilename;
     int _envSamples;
 
-    mx::DocumentPtr _contentDocument;
     mx::DocumentPtr _stdLib;
 
     ng::Label* _geomLabel;
@@ -109,12 +100,8 @@ class Viewer : public ng::Screen
     std::vector<mx::MeshPartitionPtr> _geomSelections;
     size_t _geomIndex;
 
-    ng::Label* _elemLabel;
-    ng::ComboBox* _elemSelectionBox;
-    std::vector<mx::TypedElementPtr> _elemSelections;
-    size_t _elemIndex;
-
-    PropertyEditor _propertyEditor;
+    ng::Label* _materialLabel;
+    ng::ComboBox* _subsetSelectionBox;
 
     mx::GLTextureHandlerPtr _imageHandler;
 };
