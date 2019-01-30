@@ -144,6 +144,92 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
+    ng::Button* lookButton = new ng::Button(_window, "Assign Look");
+    lookButton->setIcon(ENTYPO_ICON_DOCUMENT);
+    lookButton->setCallback([this]()
+    {
+        mProcessEvents = false;
+        std::string filename = ng::file_dialog({ { "mtlx", "MaterialX" } }, false);
+        if (!filename.empty())
+        {
+            try
+            {
+                // Assign any materials found to geometry
+                mx::DocumentPtr lookDoc = mx::createDocument();
+                mx::readFromXmlFile(lookDoc, filename);
+                std::vector<mx::LookPtr> looks = lookDoc->getLooks();
+                for (auto look : looks)
+                {
+                    std::vector<mx::MaterialAssignPtr> assignments = look->getMaterialAssigns();
+                    for (auto assignment : assignments)
+                    {
+                        // Try and find the material to assign
+                        std::string materialName = assignment->getMaterial();
+
+                        MaterialPtr assignedMaterial = nullptr;
+                        for (auto mat : _materials)
+                        {
+                            const std::vector<MaterialSubset>& subsets = mat->getSubsets();
+                            for (auto sub : subsets)
+                            { 
+                                mx::TypedElementPtr elem = sub.elem;
+                                mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
+                                mx::MaterialPtr materialRef = shaderRef  ? shaderRef->getParent()->asA<mx::Material>() : nullptr;
+                                if (materialRef)
+                                {
+                                    assignedMaterial = mat;
+                                    break;
+                                }
+                                if (assignedMaterial)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        if (!assignedMaterial)
+                        {
+                            continue;
+                        }
+
+                        mx::StringVec geomList;
+
+                        // Check for a geom
+                        std::string geom = assignment->getGeom();
+                        if (geom.size())
+                        {
+                            geomList.push_back(geom);
+                        }
+                        else
+                        {
+                            mx::CollectionPtr collection = assignment->getCollection();
+                            const std::string geomListString = collection->getIncludeGeom();
+                            geomList = mx::splitString(geomListString, ",");
+                        }
+
+                        for (auto geomName : geomList)
+                        {
+                            for (size_t i = 0; i < _geomSelections.size(); i++)
+                            {
+                                std::string id = _geomSelections[i]->getIdentifier();
+                                if (geomName == id)
+                                {
+                                    _materials[i] = assignedMaterial;
+                                }
+                            }
+                        }
+                     
+                    }
+                }
+            }
+            catch (std::exception& e)
+            {
+                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Look Assignment Error", e.what());
+            }
+        }
+        mProcessEvents = true;
+    });
+
+
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
     editorButton->setFlags(ng::Button::ToggleButton);
     editorButton->setChangeCallback([this](bool state)

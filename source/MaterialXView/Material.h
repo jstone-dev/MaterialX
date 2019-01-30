@@ -58,6 +58,12 @@ class Material
         return _subsets[_subsetIndex];
     }
 
+    /// Return the material subset at a given index.
+    const MaterialSubset& getSubset(size_t index)
+    {
+        return _subsets[index];
+    }
+
     /// Set the current material subset index.
     void setSubsetIndex(size_t index)
     {
@@ -68,6 +74,20 @@ class Material
     size_t getSubsetIndex()
     {
         return _subsetIndex;
+    }
+
+    /// Get list of indices for subsets with a given element
+    size_t getSubsetIndices(const mx::ElementPtr elem, std::vector<size_t>& indicies)
+    {
+        indicies.clear();
+        for (size_t i=0; i<_subsets.size(); i++)
+        {
+            if (_subsets[i].elem == elem)
+            {
+                indicies.push_back(i);
+            }
+        }
+        return indicies.size();
     }
 
     /// Generate a shader from the given inputs.
