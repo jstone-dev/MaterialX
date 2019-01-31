@@ -52,6 +52,7 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
     shaderGenerator->setColorManagementSystem(cms);
 
     mx::GenOptions options;
+    options.hwSpecularEnvironmentMethod = mx::SPECULAR_ENVIRONMENT_FIS;
     options.hwTransparency = isTransparentSurface(elem, *shaderGenerator);
     options.targetColorSpaceOverride = "lin_rec709";
     mx::ShaderPtr sgShader = shaderGenerator->generate("Shader", elem, options);

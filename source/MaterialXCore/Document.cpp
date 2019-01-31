@@ -206,7 +206,7 @@ vector<PortElementPtr> Document::getMatchingPorts(const string& nodeName) const
     return ports;
 }
 
-ValuePtr Document::getGeomAttrValue(const string& geomAttrName, const string& geom)
+ValuePtr Document::getGeomAttrValue(const string& geomAttrName, const string& geom) const
 {
     ValuePtr value;
     for (GeomInfoPtr geomInfo : getGeomInfos())

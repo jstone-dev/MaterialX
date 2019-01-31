@@ -32,7 +32,7 @@ HwShader::HwShader(const string& name)
                                 0, 1, 0, 0,
                                 0, 0, -1, 0,
                                 0, 0, 0, 1);
-    createUniform(PIXEL_STAGE, PRIVATE_UNIFORMS, Type::MATRIX44, "u_envMatrix", EMPTY_STRING, 
+    createUniform(PIXEL_STAGE, PRIVATE_UNIFORMS, Type::MATRIX44, "u_envMatrix", EMPTY_STRING,
         EMPTY_STRING, Value::createValue<Matrix44>(yRotationPI));
     createUniform(PIXEL_STAGE, PRIVATE_UNIFORMS, Type::INTEGER, "u_envSamples", EMPTY_STRING,
         EMPTY_STRING, Value::createValue(16));
