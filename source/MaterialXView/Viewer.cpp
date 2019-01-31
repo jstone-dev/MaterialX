@@ -67,21 +67,38 @@ void Viewer::initializeDocument(mx::DocumentPtr libraries)
     mx::CopyOptions copyOptions;
     copyOptions.skipDuplicateElements = true;
     _doc->importLibrary(libraries, &copyOptions);
+
+    // Clear state
+    _materials.clear();
+    _materialAssignments.clear();
 }
 
-void Viewer::assignMaterial(MaterialPtr material)
+void Viewer::importMaterials(mx::DocumentPtr materials)
 {
-    _materialAssignments.clear();
+    mx::CopyOptions copyOptions;
+    copyOptions.skipDuplicateElements = true;
+    _doc->importLibrary(materials, &copyOptions);
+}
+
+void Viewer::assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry)
+{
     const mx::MeshList& meshes = _geometryHandler.getMeshes();
     if (meshes.empty())
     {
         return;
     }
+    if (_materialAssignments.count(geometry))
+    {
+        material->bindMesh(meshes[0]);
+        _materialAssignments[geometry] = material;
+    }
+}
+
+void Viewer::assignMaterial(MaterialPtr material)
+{
     for (auto geom : _geometryList)
     {
-        // Make sure the material uses the mesh
-        material->bindMesh(meshes[0]);
-        _materialAssignments[geom] = material;
+        assignMaterial(material, geom);
     }
 }
 
@@ -140,6 +157,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
+    // Import option on this is to not initialize
     ng::Button* materialButton = new ng::Button(_window, "Load Materials");
     materialButton->setIcon(ENTYPO_ICON_FOLDER);
     materialButton->setCallback([this]()
@@ -151,8 +169,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _materialFilename = filename;
             try
             {
-                _materials.clear();
+                initializeDocument();
                 mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
+                importMaterials(materialDoc);
             }
             catch (std::exception& e)
             {
@@ -289,7 +308,6 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     });
 
     _geomLabel = new ng::Label(_window, "Set Active Geometry");
-
     _geometryListBox = new ng::ComboBox(_window, {"None"});
     _geometryListBox->setChevronIcon(-1);
     _geometryListBox->setCallback([this](int choice)
@@ -304,6 +322,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _materialSelectionBox->setCallback([this](int choice)
     {
         setMaterialSelection(choice);
+        // Assign material to selected geometry
     });
 
     // Load in standard library and create top level document
@@ -330,7 +349,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     try
     {
-        getSelectedMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
+        _materials.clear();
+        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
+        importMaterials(materialDoc);    
     }
     catch (std::exception& e)
     {
@@ -416,7 +437,7 @@ void Viewer::updateMaterialSelections()
     performLayout();
 }
 
-bool Viewer::setMaterialSelection(size_t index)
+MaterialPtr Viewer::setMaterialSelection(size_t index)
 {
     if (index >= _materials.size())
     {
@@ -427,11 +448,10 @@ bool Viewer::setMaterialSelection(size_t index)
     MaterialPtr material = _materials[index];
     if (material->generateShader(_searchPath, material->getElement()))
     {
-        //material->bindMesh(_geometryHandler.getMeshes()[0]);
         updatePropertyEditor();
-        return true;
+        return material;
     }
-    return false;
+    return nullptr;
 }
 
 bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
@@ -444,7 +464,12 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     {
         try
         {
-            getSelectedMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
+            if (_materialFilename.size())
+            {
+                initializeDocument();
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
+                importMaterials(materialDoc);
+            }
         }
         catch (std::exception& e)
         {
@@ -453,7 +478,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         try
         {
             updateMaterialSelections();
-            setMaterialSelection(getSelectedMaterial()->getSubsetIndex());
+            setMaterialSelection(_selectedMaterial);
             updatePropertyEditor();
         }
         catch (std::exception& e)
@@ -469,8 +494,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             try
             {
                 MaterialPtr material = getSelectedMaterial();
-                MaterialSubset subset = material->getCurrentSubset();
-                if (subset.elem)
+                if (material->.elem)
                 {
                     mx::HwShaderPtr hwShader = generateSource(_searchPath, subset.elem);
                     if (hwShader)
@@ -494,24 +518,23 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     // Allow left and right keys to cycle through the renderable elements
     if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
-        size_t subsetCount = getSelectedMaterial()->getSubsets().size();
-        size_t subsetIndex = getSelectedMaterial()->getSubsetIndex();
-        if (subsetCount > 1)
+        size_t materialCount = _materials.size();
+        size_t materialIndex = _selectedMaterial;
+        if (materialCount > 1)
         {
-            size_t newIndex = 0;
             if (key == GLFW_KEY_RIGHT)
             {
-                newIndex = (subsetIndex < subsetCount - 1) ? subsetIndex + 1 : 0;
+                _selectedMaterial = (materialIndex < materialCount - 1) ? materialIndex + 1 : 0;
             }
             else
             {
-                newIndex = (subsetIndex > 0) ? subsetIndex - 1 : subsetCount - 1;
+                _selectedMaterial = (materialIndex > 0) ? materialIndex - 1 : materialCount - 1;
             }
             try
             {
-                if (setMaterialSelection(newIndex))
+                if (setMaterialSelection(_selectedMaterial))
                 {
-                    _materialSelectionBox->setSelectedIndex((int) newIndex);
+                    _materialSelectionBox->setSelectedIndex((int)_selectedMaterial);
                     updateMaterialSelections();
                     updatePropertyEditor();
                 }

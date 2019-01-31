@@ -50,9 +50,10 @@ class Viewer : public ng::Screen
     }
 
   private:
-    void initializeDocument(mx::DocumentPtr librarys);
-    /// Assign the same material to all geometry
+    void initializeDocument(mx::DocumentPtr libraries);
+    void importMaterials(mx::DocumentPtr materials);
     void assignMaterial(MaterialPtr material);
+    void assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry);
     void initCamera();
     void computeCameraMatrices(mx::Matrix44& world,
                                mx::Matrix44& view,
@@ -61,7 +62,7 @@ class Viewer : public ng::Screen
     bool setGeometrySelection(size_t index);
     void updateGeometrySelections();
 
-    bool setMaterialSelection(size_t index);
+    MaterialPtr setMaterialSelection(size_t index);
     void updateMaterialSelections();
 
     void updatePropertyEditor();
@@ -91,6 +92,7 @@ class Viewer : public ng::Screen
     mx::StringMap _nodeRemap;
     mx::DocumentPtr _stdLib;
     mx::DocumentPtr _doc;
+    mx::FilePath _materialFilename;
 
     // List of available materials and UI
     std::vector<MaterialPtr> _materials;
