@@ -61,6 +61,30 @@ void writeTextFile(const std::string& text, const std::string& filePath)
 // Viewer methods
 //
 
+void Viewer::initializeDocument(mx::DocumentPtr libraries)
+{
+    _doc = mx::createDocument();
+    mx::CopyOptions copyOptions;
+    copyOptions.skipDuplicateElements = true;
+    _doc->importLibrary(libraries, &copyOptions);
+}
+
+void Viewer::assignMaterial(MaterialPtr material)
+{
+    _materialAssignments.clear();
+    const mx::MeshList& meshes = _geometryHandler.getMeshes();
+    if (meshes.empty())
+    {
+        return;
+    }
+    for (auto geom : _geometryList)
+    {
+        // Make sure the material uses the mesh
+        material->bindMesh(meshes[0]);
+        _materialAssignments[geom] = material;
+    }
+}
+
 Viewer::Viewer(const mx::StringVec& libraryFolders,
                const mx::FileSearchPath& searchPath,
                const mx::StringMap& nodeRemap,
@@ -82,13 +106,13 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _searchPath(searchPath),
     _nodeRemap(nodeRemap),
     _envSamples(DEFAULT_ENV_SAMPLES),
-    _geomIndex(0)
+    _selectedGeom(0)
 {
     _window = new ng::Window(this, "Viewer Options");
     _window->setPosition(ng::Vector2i(15, 15));
     _window->setLayout(new ng::GroupLayout());
 
-    ng::Button* meshButton = new ng::Button(_window, "Load Mesh");
+    ng::Button* meshButton = new ng::Button(_window, "Load Mesh"); //=> UPDATED
     meshButton->setIcon(ENTYPO_ICON_FOLDER);
     meshButton->setCallback([this]()
     {
@@ -100,15 +124,11 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             if (_geometryHandler.loadGeometry(filename))
             {
                 updateGeometrySelections();
-                _materials.resize(_geomSelections.size());
-                for (size_t i = 1; i < _geomSelections.size(); i++)
+                // Bind the currently selected material (if any) to the geometry loaded in
+                MaterialPtr material = getSelectedMaterial();
+                if (material)
                 {
-                    _materials[i] = std::make_shared<Material>();
-                    *_materials[i] = *_materials[0];
-                }
-                if (getCurrentMaterial())
-                {
-                    getCurrentMaterial()->bindMesh(_geometryHandler.getMeshes()[0]);
+                    assignMaterial(material);
                 }
                 initCamera();
             }
@@ -120,7 +140,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
-    ng::Button* materialButton = new ng::Button(_window, "Load Material");
+    ng::Button* materialButton = new ng::Button(_window, "Load Materials");
     materialButton->setIcon(ENTYPO_ICON_FOLDER);
     materialButton->setCallback([this]()
     {
@@ -131,20 +151,19 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _materialFilename = filename;
             try
             {
-                _materials[_geomIndex] = std::make_shared<Material>();
-                getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
-                updateSubsetSelections();
-                setSubsetSelection(0);
+                _materials.clear();
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
             }
             catch (std::exception& e)
             {
-                _materials[_geomIndex] = nullptr;
+                _materials[_selectedGeom] = nullptr;
                 new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
         }
         mProcessEvents = true;
     });
 
+#if 0
     ng::Button* lookButton = new ng::Button(_window, "Assign Look");
     lookButton->setIcon(ENTYPO_ICON_DOCUMENT);
     lookButton->setCallback([this]()
@@ -209,12 +228,27 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
                         for (auto geomName : geomList)
                         {
-                            for (size_t i = 0; i < _geomSelections.size(); i++)
+                            for (size_t i = 0; i < _geometryList.size(); i++)
                             {
-                                std::string id = _geomSelections[i]->getIdentifier();
+                                std::string id = _geometryList[i]->getIdentifier();
                                 if (geomName == id)
                                 {
+                                    _selectedGeom = i;
+                                    assignedMaterial->setSubsetIndex(i);
+                                    updateMaterialSelections();
+                                    setMaterialSelection(getSelectedMaterial()->getSubsetIndex());
+/*
                                     _materials[i] = assignedMaterial;
+                                    assignedMaterial->setSubsetIndex(i);
+                                    const MaterialSubset& subset = assignedMaterial->getCurrentSubset();
+                                    if (subset.elem)
+                                    {
+                                        _materialSelectionBox->setSelectedIndex((int)index);
+                                        if (material->generateShader(_searchPath, subset.elem))
+                                        {
+                                            material->bindMesh(_geometryHandler.getMeshes()[0]);
+                                            updatePropertyEditor();
+                                 */           
                                 }
                             }
                         }
@@ -229,7 +263,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         }
         mProcessEvents = true;
     });
-
+#endif
 
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
     editorButton->setFlags(ng::Button::ToggleButton);
@@ -254,27 +288,30 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
     });
 
-    _geomLabel = new ng::Label(_window, "Geometry");
+    _geomLabel = new ng::Label(_window, "Set Active Geometry");
 
-    _geomSelectionBox = new ng::ComboBox(_window, {"None"});
-    _geomSelectionBox->setChevronIcon(-1);
-    _geomSelectionBox->setCallback([this](int choice)
+    _geometryListBox = new ng::ComboBox(_window, {"None"});
+    _geometryListBox->setChevronIcon(-1);
+    _geometryListBox->setCallback([this](int choice)
     {
         setGeometrySelection(choice);
     });
 
-    _materialLabel = new ng::Label(_window, "Material");
+    _materialLabel = new ng::Label(_window, "Assign Material To Active Geometry");
 
-    _subsetSelectionBox = new ng::ComboBox(_window, {"None"});
-    _subsetSelectionBox->setChevronIcon(-1);
-    _subsetSelectionBox->setCallback([this](int choice)
+    _materialSelectionBox = new ng::ComboBox(_window, {"None"});
+    _materialSelectionBox->setChevronIcon(-1);
+    _materialSelectionBox->setCallback([this](int choice)
     {
-        setSubsetSelection(choice);
+        setMaterialSelection(choice);
     });
+
+    // Load in standard library and create top level document
+    _stdLib = loadLibraries(_libraryFolders, _searchPath);
+    initializeDocument();
 
     mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
     _imageHandler = mx::GLTextureHandler::create(stbImageLoader);
-    _stdLib = loadLibraries(_libraryFolders, _searchPath);
 
     std::string meshFilename("documents/TestSuite/Geometry/teapot.obj");
     mx::TinyObjLoaderPtr loader = mx::TinyObjLoader::create();
@@ -293,7 +330,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     try
     {
-        getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
+        getSelectedMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
     }
     catch (std::exception& e)
     {
@@ -301,8 +338,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     }
     try
     {
-        updateSubsetSelections();
-        setSubsetSelection(0);
+        updateMaterialSelections();
+        setMaterialSelection(0);
     }
     catch (std::exception& e)
     {
@@ -316,18 +353,18 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
 void Viewer::updateGeometrySelections()
 {
-    _geomSelections.clear();
+    _geometryList.clear();
     mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
     for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
     {
         mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
-        _geomSelections.push_back(part);
+        _geometryList.push_back(part);
     }
 
     std::vector<std::string> items;
-    for (size_t i = 0; i < _geomSelections.size(); i++)
+    for (size_t i = 0; i < _geometryList.size(); i++)
     {
-        std::string geomName = _geomSelections[i]->getIdentifier();
+        std::string geomName = _geometryList[i]->getIdentifier();
         mx::StringVec geomSplit = mx::splitString(geomName, ":");
         if (!geomSplit.empty() && !geomSplit[geomSplit.size() - 1].empty())
         {
@@ -336,67 +373,63 @@ void Viewer::updateGeometrySelections()
 
         items.push_back(geomName);
     }
-    _geomSelectionBox->setItems(items);
+    _geometryListBox->setItems(items);
 
-    _geomLabel->setVisible(items.size() > 1);
-    _geomSelectionBox->setVisible(items.size() > 1);
-    _geomIndex = 0;
+    //_geomLabel->setVisible(items.size() > 1);
+    //_geometryListBox->setVisible(items.size() > 1);
+    _selectedGeom = 0;
 
     performLayout();
 }
 
 bool Viewer::setGeometrySelection(size_t index)
 {
-    if (index < _geomSelections.size())
+    if (index < _geometryList.size())
     {
-        _geomIndex = index;
-        updateSubsetSelections();
-        setSubsetSelection(getCurrentMaterial()->getSubsetIndex());
+        _selectedGeom = index;
+        //updateMaterialSelections();
+        //setMaterialSelection(getSelectedMaterial()->getSubsetIndex());
         return true;
     }
     return false;
 }
 
-void Viewer::updateSubsetSelections()
+void Viewer::updateMaterialSelections()
 {
     std::vector<std::string> items;
-    for (const MaterialSubset& subset : getCurrentMaterial()->getSubsets())
+    for (auto material : _materials)
     {
-        std::string displayName = subset.elem->getNamePath();
-        if (!subset.udim.empty())
+        std::string displayName = material->getElement()->getNamePath();
+        if (!material->getUdim().empty())
         {
-            displayName += " (" + subset.udim + ")";
+            displayName += " (" + material->getUdim() + ")";
         }
         items.push_back(displayName);
     }
-    _subsetSelectionBox->setItems(items);
+    _materialSelectionBox->setItems(items);
 
-    _materialLabel->setVisible(items.size() > 1);
-    _subsetSelectionBox->setVisible(items.size() > 1);
+    //_materialLabel->setVisible(items.size() > 1);
+    //_materialSelectionBox->setVisible(items.size() > 1);
+
+    _selectedMaterial = 0;
 
     performLayout();
 }
 
-bool Viewer::setSubsetSelection(size_t index)
+bool Viewer::setMaterialSelection(size_t index)
 {
-    MaterialPtr material = getCurrentMaterial();
-    if (index >= material->getSubsets().size())
+    if (index >= _materials.size())
     {
         return false;
     }
 
-    getCurrentMaterial()->setSubsetIndex(index);
-
-    const MaterialSubset& subset = material->getCurrentSubset();
-    if (subset.elem)
+    _materialSelectionBox->setSelectedIndex((int)index);
+    MaterialPtr material = _materials[index];
+    if (material->generateShader(_searchPath, material->getElement()))
     {
-        _subsetSelectionBox->setSelectedIndex((int) index);
-        if (material->generateShader(_searchPath, subset.elem))
-        {
-            material->bindMesh(_geometryHandler.getMeshes()[0]);
-            updatePropertyEditor();
-            return true;
-        }
+        //material->bindMesh(_geometryHandler.getMeshes()[0]);
+        updatePropertyEditor();
+        return true;
     }
     return false;
 }
@@ -411,7 +444,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     {
         try
         {
-            getCurrentMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
+            getSelectedMaterial()->loadDocument(_materialFilename, _stdLib, _nodeRemap);
         }
         catch (std::exception& e)
         {
@@ -419,8 +452,8 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         }
         try
         {
-            updateSubsetSelections();
-            setSubsetSelection(getCurrentMaterial()->getSubsetIndex());
+            updateMaterialSelections();
+            setMaterialSelection(getSelectedMaterial()->getSubsetIndex());
             updatePropertyEditor();
         }
         catch (std::exception& e)
@@ -435,7 +468,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             try
             {
-                MaterialPtr material = getCurrentMaterial();
+                MaterialPtr material = getSelectedMaterial();
                 MaterialSubset subset = material->getCurrentSubset();
                 if (subset.elem)
                 {
@@ -461,8 +494,8 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
     // Allow left and right keys to cycle through the renderable elements
     if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
-        size_t subsetCount = getCurrentMaterial()->getSubsets().size();
-        size_t subsetIndex = getCurrentMaterial()->getSubsetIndex();
+        size_t subsetCount = getSelectedMaterial()->getSubsets().size();
+        size_t subsetIndex = getSelectedMaterial()->getSubsetIndex();
         if (subsetCount > 1)
         {
             size_t newIndex = 0;
@@ -476,10 +509,10 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             }
             try
             {
-                if (setSubsetSelection(newIndex))
+                if (setMaterialSelection(newIndex))
                 {
-                    _subsetSelectionBox->setSelectedIndex((int) newIndex);
-                    updateSubsetSelections();
+                    _materialSelectionBox->setSelectedIndex((int) newIndex);
+                    updateMaterialSelections();
                     updatePropertyEditor();
                 }
             }
@@ -496,7 +529,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (_geomSelections.empty() || !getCurrentMaterial())
+    if (_geometryList.empty() || !getSelectedMaterial())
     {
         return;
     }
@@ -509,7 +542,7 @@ void Viewer::drawContents()
     glEnable(GL_FRAMEBUFFER_SRGB);
 
     GLShaderPtr lastBoundShader;
-    for (size_t i = 0; i < _geomSelections.size(); i++)
+    for (size_t i = 0; i < _geometryList.size(); i++)
     {
         MaterialPtr material = _materials[i];
         GLShaderPtr shader = material->getShader();
@@ -530,7 +563,7 @@ void Viewer::drawContents()
             material->bindLights(_imageHandler, _searchPath, _envSamples);
         }
         material->bindImages(_imageHandler, _searchPath, material->getCurrentSubset().udim);
-        material->drawPartition(_geomSelections[i]);
+        material->drawPartition(_geometryList[i]);
     }
 
     glDisable(GL_BLEND);

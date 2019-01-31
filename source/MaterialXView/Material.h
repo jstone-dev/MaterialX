@@ -21,73 +21,43 @@ using GLShaderPtr = std::shared_ptr<ng::GLShader>;
 
 using StringPair = std::pair<std::string, std::string>;
 
-class MaterialSubset
-{
-  public:
-    mx::TypedElementPtr elem;
-    std::string udim;
-};
-
 class Material
 {
   public:
-    Material() :
-        _subsetIndex(0)
-    {
-    }
+    Material() {}
     ~Material() { }
 
-    /// Load a new content document.
-    void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib, const mx::StringMap& nodeRemap);
-
-    /// Return the content document.
-    mx::DocumentPtr getDocument()
+    static MaterialPtr create()
     {
-        return _doc;
+        return std::make_shared<Material>();
     }
 
-    /// Return the vector of material subsets.
-    const std::vector<MaterialSubset>& getSubsets()
+    /// Load a new document containing renderable materials.
+    /// Returns a document and a list of loaded Materials.
+    static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials);
+
+    /// Return the renderable element associated with this material
+    mx::TypedElementPtr getElement() const
     {
-        return _subsets;
+        return _elem;
     }
 
-    /// Return the current material subset.
-    const MaterialSubset& getCurrentSubset()
+    /// Set the renderable element associated with this material
+    void setElement(mx::TypedElementPtr val)
     {
-        return _subsets[_subsetIndex];
+        _elem = val;
     }
 
-    /// Return the material subset at a given index.
-    const MaterialSubset& getSubset(size_t index)
+    /// Get any associated udim identifier
+    const std::string& getUdim()
     {
-        return _subsets[index];
+        return _udim;
     }
 
-    /// Set the current material subset index.
-    void setSubsetIndex(size_t index)
+    /// Set udim identifier
+    void setUdim(const std::string& val)
     {
-        _subsetIndex = index;
-    }
-
-    /// Return the current material subset index.
-    size_t getSubsetIndex()
-    {
-        return _subsetIndex;
-    }
-
-    /// Get list of indices for subsets with a given element
-    size_t getSubsetIndices(const mx::ElementPtr elem, std::vector<size_t>& indicies)
-    {
-        indicies.clear();
-        for (size_t i=0; i<_subsets.size(); i++)
-        {
-            if (_subsets[i].elem == elem)
-            {
-                indicies.push_back(i);
-            }
-        }
-        return indicies.size();
+        _udim = val;
     }
 
     /// Generate a shader from the given inputs.
@@ -134,11 +104,10 @@ class Material
     mx::Shader::Variable* findUniform(const std::string& path) const;
 
   protected:
-    mx::DocumentPtr _doc;
     GLShaderPtr _glShader;
     mx::HwShaderPtr _hwShader;
-    std::vector<MaterialSubset> _subsets;
-    size_t _subsetIndex;
+    mx::TypedElementPtr _elem;
+    std::string _udim;
     bool _hasTransparency;
 };
 

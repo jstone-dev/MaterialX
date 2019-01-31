@@ -64,19 +64,14 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
 // Material methods
 //
 
-void Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib, const mx::StringMap& nodeRemap)
+mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials)
 {
     // Load the given document.
-    _doc = mx::createDocument();
-    mx::readFromXmlFile(_doc, filePath);
-
-    // Import the given standard library.
-    mx::CopyOptions copyOptions;
-    copyOptions.skipDuplicateElements = true;
-    _doc->importLibrary(stdLib, &copyOptions);
+    mx::DocumentPtr doc = mx::createDocument();
+    mx::readFromXmlFile(doc, filePath);
 
     // Remap node names if requested.
-    for (mx::ElementPtr elem : _doc->traverseTree())
+    for (mx::ElementPtr elem : doc->traverseTree())
     {
         mx::NodePtr node = elem->asA<mx::Node>();
         mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
@@ -96,38 +91,37 @@ void Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib
     }
 
     // Remove unimplemented shader nodedefs.
-    std::vector<mx::NodeDefPtr> nodeDefs = _doc->getNodeDefs();
+    std::vector<mx::NodeDefPtr> nodeDefs = doc->getNodeDefs();
     for (mx::NodeDefPtr nodeDef : nodeDefs)
     {
         if (nodeDef->getType() == mx::SURFACE_SHADER_TYPE_STRING &&
             !nodeDef->getImplementation())
         {
-            _doc->removeNodeDef(nodeDef->getName());
+            doc->removeNodeDef(nodeDef->getName());
         }
     }
 
-    // Generate material subsets.
-    _subsets.clear();
+    // Generate materials
     std::vector<mx::TypedElementPtr> elems;
-    mx::findRenderableElements(_doc, elems);
-    mx::ValuePtr udimSetValue = _doc->getGeomAttrValue("udimset");
+    mx::findRenderableElements(doc, elems);
+    mx::ValuePtr udimSetValue = doc->getGeomAttrValue("udimset");
     for (mx::TypedElementPtr elem : elems)
     {
         if (udimSetValue && udimSetValue->isA<mx::StringVec>())
         {
             for (const std::string& udim : udimSetValue->asA<mx::StringVec>())
             {
-                MaterialSubset subset;
-                subset.elem = elem;
-                subset.udim = udim;
-                _subsets.push_back(subset);
+                MaterialPtr mat = Material::create();
+                mat->setElement(elem);
+                mat->setUdim(udim);
+                materials.push_back(mat);
             }
         }
         else
         {
-            MaterialSubset subset;
-            subset.elem = elem;
-            _subsets.push_back(subset);
+            MaterialPtr mat = Material::create();
+            mat->setElement(elem);
+            materials.push_back(mat);
         }
     }
 }

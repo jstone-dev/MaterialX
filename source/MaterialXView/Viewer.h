@@ -29,14 +29,14 @@ class Viewer : public ng::Screen
         return _window;
     }
 
-    MaterialPtr getCurrentMaterial() const
+    MaterialPtr getSelectedMaterial() const
     {
-        return _materials[_geomIndex];
+        return _materials[_selectedMaterial];
     }
 
     mx::DocumentPtr getCurrentDocument() const
     {
-        return getCurrentMaterial()->getDocument();
+        return _doc;
     }
 
     const mx::FileSearchPath& getSearchPath() const
@@ -50,6 +50,9 @@ class Viewer : public ng::Screen
     }
 
   private:
+    void initializeDocument(mx::DocumentPtr librarys);
+    /// Assign the same material to all geometry
+    void assignMaterial(MaterialPtr material);
     void initCamera();
     void computeCameraMatrices(mx::Matrix44& world,
                                mx::Matrix44& view,
@@ -58,18 +61,14 @@ class Viewer : public ng::Screen
     bool setGeometrySelection(size_t index);
     void updateGeometrySelections();
 
-    bool setSubsetSelection(size_t index);
-    void updateSubsetSelections();
+    bool setMaterialSelection(size_t index);
+    void updateMaterialSelections();
 
     void updatePropertyEditor();
 
   private:
     ng::Window* _window;
     ng::Arcball _arcball;
-    PropertyEditor _propertyEditor;
-
-    mx::GeometryHandler _geometryHandler;
-    std::vector<MaterialPtr> _materials;
 
     mx::Vector3 _eye;
     mx::Vector3 _center;
@@ -86,24 +85,38 @@ class Viewer : public ng::Screen
     bool _translationActive;
     ng::Vector2i _translationStart;
 
+    // Document management
     mx::StringVec _libraryFolders;
     mx::FileSearchPath _searchPath;
     mx::StringMap _nodeRemap;
-
-    mx::FilePath _materialFilename;
-    int _envSamples;
-
     mx::DocumentPtr _stdLib;
+    mx::DocumentPtr _doc;
 
-    ng::Label* _geomLabel;
-    ng::ComboBox* _geomSelectionBox;
-    std::vector<mx::MeshPartitionPtr> _geomSelections;
-    size_t _geomIndex;
-
+    // List of available materials and UI
+    std::vector<MaterialPtr> _materials;
+    size_t _selectedMaterial;
+    // UI:
     ng::Label* _materialLabel;
-    ng::ComboBox* _subsetSelectionBox;
+    ng::ComboBox* _materialSelectionBox;
+    // Property editor: Currently shows only selected material
+    PropertyEditor _propertyEditor;
 
+    // List of available geometries and UI
+    std::vector<mx::MeshPartitionPtr> _geometryList;
+    size_t _selectedGeom;
+    // UI:
+    ng::Label* _geomLabel;
+    ng::ComboBox* _geometryListBox;
+
+    // List of material assignments to geometry
+    std::map<mx::MeshPartitionPtr, MaterialPtr> _materialAssignments;
+
+    // Resource handlers
+    mx::GeometryHandler _geometryHandler;
     mx::GLTextureHandlerPtr _imageHandler;
+
+    // FIS sample count
+    int _envSamples;
 };
 
 #endif // MATERIALXVIEW_VIEWER_H
