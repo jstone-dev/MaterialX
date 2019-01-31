@@ -31,7 +31,11 @@ class Viewer : public ng::Screen
 
     MaterialPtr getSelectedMaterial() const
     {
-        return _materials[_selectedMaterial];
+        if (_selectedMaterial < _materials.size())
+        {
+            return _materials[_selectedMaterial];
+        }
+        return nullptr;
     }
 
     mx::DocumentPtr getCurrentDocument() const

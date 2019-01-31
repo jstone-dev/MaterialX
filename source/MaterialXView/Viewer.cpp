@@ -70,6 +70,7 @@ void Viewer::initializeDocument(mx::DocumentPtr libraries)
 
     // Clear state
     _materials.clear();
+    _selectedMaterial = 0;
     _materialAssignments.clear();
 }
 
@@ -172,10 +173,15 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
                 initializeDocument();
                 mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
                 importMaterials(materialDoc);
+                updateMaterialSelections();
+                setMaterialSelection(0);
+                if (_materials.size())
+                {
+                    assignMaterial(_materials[0]);
+                }
             }
             catch (std::exception& e)
             {
-                _materials[_selectedGeom] = nullptr;
                 new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
             }
         }
@@ -351,20 +357,17 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     {
         _materials.clear();
         mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
-        importMaterials(materialDoc);    
-    }
-    catch (std::exception& e)
-    {
-        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to load document", e.what());
-    }
-    try
-    {
+        importMaterials(materialDoc);            
         updateMaterialSelections();
         setMaterialSelection(0);
+        if (_materials.size())
+        {
+            assignMaterial(_materials[0]);
+        }
     }
     catch (std::exception& e)
     {
-        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to load materials", e.what());
     }
 
     updatePropertyEditor();
@@ -408,8 +411,6 @@ bool Viewer::setGeometrySelection(size_t index)
     if (index < _geometryList.size())
     {
         _selectedGeom = index;
-        //updateMaterialSelections();
-        //setMaterialSelection(getSelectedMaterial()->getSubsetIndex());
         return true;
     }
     return false;
@@ -469,6 +470,12 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
                 initializeDocument();
                 mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
                 importMaterials(materialDoc);
+                updateMaterialSelections();
+                setMaterialSelection(0);
+                if (_materials.size())
+                {
+                    assignMaterial(_materials[0]);
+                }
             }
         }
         catch (std::exception& e)
@@ -552,7 +559,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 
 void Viewer::drawContents()
 {
-    if (_geometryList.empty() || !getSelectedMaterial())
+    if (_geometryList.empty() || _materials.empty())
     {
         return;
     }
@@ -565,9 +572,10 @@ void Viewer::drawContents()
     glEnable(GL_FRAMEBUFFER_SRGB);
 
     GLShaderPtr lastBoundShader;
-    for (size_t i = 0; i < _geometryList.size(); i++)
+    for (auto assignment : _materialAssignments)
     {
-        MaterialPtr material = _materials[i];
+        mx::MeshPartitionPtr geom = assignment.first;
+        MaterialPtr material = assignment.second;
         GLShaderPtr shader = material->getShader();
         if (shader && shader != lastBoundShader)
         {
@@ -585,8 +593,8 @@ void Viewer::drawContents()
             material->bindViewInformation(world, view, proj);
             material->bindLights(_imageHandler, _searchPath, _envSamples);
         }
-        material->bindImages(_imageHandler, _searchPath, material->getCurrentSubset().udim);
-        material->drawPartition(_geometryList[i]);
+        material->bindImages(_imageHandler, _searchPath, material->getUdim());
+        material->drawPartition(geom);
     }
 
     glDisable(GL_BLEND);
