@@ -63,8 +63,8 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
 //
 // Material methods
 //
-
-mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials)
+mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, std::vector<MaterialPtr>& materials,
+                                       mx::StringMap remapElements, mx::StringSet skipElements)
 {
     // Load the given document.
     mx::DocumentPtr doc = mx::createDocument();
@@ -74,34 +74,53 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
     copyOptions.skipDuplicateElements = true;
     doc->importLibrary(libraries, &copyOptions);
 
-    // Remap node names if requested.
+    // Remap and skip elements if requested.
     for (mx::ElementPtr elem : doc->traverseTree())
     {
-        mx::NodePtr node = elem->asA<mx::Node>();
-        mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
-        if (node && nodeRemap.count(node->getCategory()))
+        if (remapElements.count(elem->getCategory()))
         {
-            node->setCategory(nodeRemap.at(node->getCategory()));
+            elem->setCategory(remapElements.at(elem->getCategory()));
         }
-        if (shaderRef)
+        if (remapElements.count(elem->getName()))
         {
-            mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
-            if (nodeDef && nodeRemap.count(nodeDef->getNodeString()))
+            elem->setName(remapElements.at(elem->getName()));
+        }
+        for (const std::string& attr : elem->getAttributeNames())
+        {
+            if (remapElements.count(attr))
             {
-                shaderRef->setNodeString(nodeRemap.at(nodeDef->getNodeString()));
-                shaderRef->removeAttribute(mx::ShaderRef::NODE_DEF_ATTRIBUTE);
+                elem->setAttribute(remapElements.at(attr), elem->getAttribute(attr));
+                elem->removeAttribute(attr);
+            }
+        }
+        std::vector<mx::ElementPtr> children = elem->getChildren();
+        for (mx::ElementPtr child : children)
+        {
+            if (skipElements.count(child->getCategory()) ||
+                skipElements.count(child->getName()))
+            {
+                elem->removeChild(child->getName());
             }
         }
     }
 
-    // Remove unimplemented shader nodedefs.
-    std::vector<mx::NodeDefPtr> nodeDefs = doc->getNodeDefs();
-    for (mx::NodeDefPtr nodeDef : nodeDefs)
+    // Remap references to unimplemented shader nodedefs.
+    for (mx::MaterialPtr material : doc->getMaterials())
     {
-        if (nodeDef->getType() == mx::SURFACE_SHADER_TYPE_STRING &&
-            !nodeDef->getImplementation())
+        for (mx::ShaderRefPtr shaderRef : material->getShaderRefs())
         {
-            doc->removeNodeDef(nodeDef->getName());
+            mx::NodeDefPtr nodeDef = shaderRef->getNodeDef();
+            if (nodeDef && !nodeDef->getImplementation())
+            {
+                std::vector<mx::NodeDefPtr> altNodeDefs = doc->getMatchingNodeDefs(nodeDef->getNodeString());
+                for (mx::NodeDefPtr altNodeDef : altNodeDefs)
+                {
+                    if (altNodeDef->getImplementation())
+                    {
+                        shaderRef->setNodeDefString(altNodeDef->getName());
+                    }
+                }
+            }
         }
     }
 

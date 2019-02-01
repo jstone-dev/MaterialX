@@ -111,7 +111,10 @@ void Viewer::assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry)
 
 Viewer::Viewer(const mx::StringVec& libraryFolders,
                const mx::FileSearchPath& searchPath,
+               const std::string meshFilename,
+               const std::string materialFilename,
                const mx::StringMap& nodeRemap,
+               const mx::StringSet& elementSkip,
                int multiSampleCount) :
     ng::Screen(ng::Vector2i(1280, 960), "MaterialXView",
         true, false,
@@ -128,7 +131,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _translationStart(0, 0),
     _libraryFolders(libraryFolders),
     _searchPath(searchPath),
-    _nodeRemap(nodeRemap),
+    _remapElements(nodeRemap),
+    _skipElements(elementSkip),
+    _materialFilename(materialFilename),
     _envSamples(DEFAULT_ENV_SAMPLES),
     _selectedGeom(0)
 {
@@ -178,7 +183,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             {
                 initializeDocument(_stdLib);
                 std::vector<MaterialPtr> newMaterials;
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, newMaterials);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _remapElements, _skipElements);
                 if (newMaterials.size())
                 {
                     importMaterials(materialDoc);
@@ -325,8 +330,6 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
     _imageHandler = mx::GLTextureHandler::create(stbImageLoader);
 
-    // Load default geometry
-    std::string meshFilename("documents/TestSuite/Geometry/teapot.obj");
     mx::TinyObjLoaderPtr loader = mx::TinyObjLoader::create();
     _geometryHandler.addLoader(loader);
     _geometryHandler.loadGeometry(meshFilename);
@@ -339,11 +342,10 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         _arcball.setSize(size);
     });
 
-    // Load default material
-    _materialFilename = std::string("documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx");
     try
     {
-        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, _materials);
+        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, 
+                                                             _remapElements, _skipElements);
         importMaterials(materialDoc);            
         updateMaterialSelections();
         setMaterialSelection(0);
@@ -491,7 +493,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             if (!_materialFilename.isEmpty())
             {
                 initializeDocument(_stdLib);
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, _materials);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, _remapElements, _skipElements);
                 importMaterials(materialDoc);
                 updateMaterialSelections();
                 setMaterialSelection(0);

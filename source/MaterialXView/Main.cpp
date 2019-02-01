@@ -14,8 +14,12 @@ int main(int argc, char* const argv[])
 
     mx::StringVec libraryFolders = { "stdlib", "pbrlib", "stdlib/genglsl", "pbrlib/genglsl" };
     mx::FileSearchPath searchPath;
-    mx::StringMap nodeRemap;
+    std::string meshFilename = "documents/TestSuite/Geometry/teapot.obj";
+    std::string materialFilename = "documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx";
+    mx::StringMap remapElements;
+    mx::StringSet skipElements;
     int multiSampleCount = 0;
+
     for (size_t i = 0; i < tokens.size(); i++)
     {
         const std::string& token = tokens[i];
@@ -28,13 +32,25 @@ int main(int argc, char* const argv[])
         {
             searchPath = mx::FileSearchPath(nextToken);
         }
+        if (token == "--mesh" && !nextToken.empty())
+        {
+            meshFilename = nextToken;
+        }
+        if (token == "--material" && !nextToken.empty())
+        {
+            materialFilename = nextToken;
+        }
         if (token == "--remap" && !nextToken.empty())
         {
             mx::StringVec vec = mx::splitString(nextToken, ":");
             if (vec.size() == 2)
             {
-                nodeRemap[vec[0]] = vec[1];
+                remapElements[vec[0]] = vec[1];
             }
+        }
+        if (token == "--skip" && !nextToken.empty())
+        {
+            skipElements.insert(nextToken);
         }
         if (token == "--msaa" && !nextToken.empty())
         {
@@ -47,7 +63,13 @@ int main(int argc, char* const argv[])
     {
         ng::init();
         {
-            ng::ref<Viewer> viewer = new Viewer(libraryFolders, searchPath, nodeRemap, multiSampleCount);
+            ng::ref<Viewer> viewer = new Viewer(libraryFolders,
+                                                searchPath,
+                                                meshFilename,
+                                                materialFilename,
+                                                remapElements,
+                                                skipElements,
+                                                multiSampleCount);
             viewer->setVisible(true);
             ng::mainloop();
         }
