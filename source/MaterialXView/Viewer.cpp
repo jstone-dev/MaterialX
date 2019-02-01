@@ -176,9 +176,9 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
             _materialFilename = filename;
             try
             {
-                initializeDocument();
+                initializeDocument(_stdLib);
                 std::vector<MaterialPtr> newMaterials;
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, newMaterials);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, newMaterials);
                 if (newMaterials.size())
                 {
                     importMaterials(materialDoc);
@@ -320,35 +320,36 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     // Load in standard library and create top level document
     _stdLib = loadLibraries(_libraryFolders, _searchPath);
-    initializeDocument();
+    initializeDocument(_stdLib);
 
     mx::ImageLoaderPtr stbImageLoader = mx::stbImageLoader::create();
     _imageHandler = mx::GLTextureHandler::create(stbImageLoader);
 
+    // Load default geometry
     std::string meshFilename("documents/TestSuite/Geometry/teapot.obj");
     mx::TinyObjLoaderPtr loader = mx::TinyObjLoader::create();
     _geometryHandler.addLoader(loader);
     _geometryHandler.loadGeometry(meshFilename);
     updateGeometrySelections();
+    
+    // Initialize camera
     initCamera();
-
     setResizeCallback([this](ng::Vector2i size)
     {
         _arcball.setSize(size);
     });
 
+    // Load default material
     _materialFilename = std::string("documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx");
-    _materials.push_back(std::make_shared<Material>());
-
     try
     {
-        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
+        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, _materials);
         importMaterials(materialDoc);            
         updateMaterialSelections();
         setMaterialSelection(0);
         if (_materials.size())
         {
-            assignMaterial(_materials[0]);
+            assignMaterial(_materials[0], nullptr);
         }
     }
     catch (std::exception& e)
@@ -431,7 +432,8 @@ MaterialPtr Viewer::setMaterialSelection(size_t index)
         return false;
     }
 
-    // Update UI selection
+    // Update UI selection and internal value
+    _selectedMaterial = index;
     _materialSelectionBox->setSelectedIndex((int)index);
 
     // Record assignment
@@ -451,6 +453,31 @@ MaterialPtr Viewer::setMaterialSelection(size_t index)
     return nullptr;
 }
 
+void Viewer::saveActiveMaterialSource()
+{
+    try
+    {
+        MaterialPtr material = getSelectedMaterial();
+        mx::TypedElementPtr elem = material ? material->getElement() : nullptr;
+        if (elem)
+        {
+            mx::HwShaderPtr hwShader = generateSource(_searchPath, elem);
+            if (hwShader)
+            {
+                std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
+                std::string pixelShader = hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
+                std::string baseName = elem->getName();
+                writeTextFile(vertexShader, _searchPath[0] / (baseName + "_vs.glsl"));
+                writeTextFile(pixelShader, _searchPath[0] / (baseName + "_ps.glsl"));
+            }
+        }
+    }
+    catch (std::exception& e)
+    {
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Cannot save source for material", e.what());
+    }
+}
+
 bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
 {
     if (Screen::keyboardEvent(key, scancode, action, modifiers))
@@ -463,14 +490,14 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         {
             if (!_materialFilename.isEmpty())
             {
-                initializeDocument();
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _nodeRemap, _materials);
+                initializeDocument(_stdLib);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _nodeRemap, _materials);
                 importMaterials(materialDoc);
                 updateMaterialSelections();
                 setMaterialSelection(0);
                 if (_materials.size())
                 {
-                    assignMaterial(_materials[0]);
+                    assignMaterial(_materials[0], nullptr);
                 }
             }
         }
@@ -490,31 +517,11 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
         }
         return true;
     }
+
+    // Save active material if any
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
-        if (!_materialFilename.isEmpty())
-        {
-            try
-            {
-                MaterialPtr material = getSelectedMaterial();
-                if (material->.elem)
-                {
-                    mx::HwShaderPtr hwShader = generateSource(_searchPath, subset.elem);
-                    if (hwShader)
-                    {
-                        std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
-                        std::string pixelShader = hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
-                        std::string baseName = mx::splitString(_materialFilename.getBaseName(), ".")[0];
-                        writeTextFile(vertexShader, _searchPath[0] / (baseName + "_vs.glsl"));
-                        writeTextFile(pixelShader, _searchPath[0]  / (baseName + "_ps.glsl"));
-                    }
-                }
-            }
-            catch (std::exception& e)
-            {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
-            }
-        }
+        saveActiveMaterialSource();
         return true;
     }
 

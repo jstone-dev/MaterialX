@@ -34,7 +34,7 @@ class Material
 
     /// Load a new document containing renderable materials.
     /// Returns a document and a list of loaded Materials.
-    static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials);
+    static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries,  const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials);
 
     /// Return the renderable element associated with this material
     mx::TypedElementPtr getElement() const

@@ -56,6 +56,7 @@ class Viewer : public ng::Screen
   private:
     void initializeDocument(mx::DocumentPtr libraries);
     void importMaterials(mx::DocumentPtr materials);
+    void saveActiveMaterialSource();
 
     /// Assign material ro a given geometry if given. If an empty supplied,
     /// then assign to all geometries.

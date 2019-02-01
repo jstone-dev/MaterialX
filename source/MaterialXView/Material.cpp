@@ -64,12 +64,15 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
 // Material methods
 //
 
-mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials)
+mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, const mx::StringMap& nodeRemap, std::vector<MaterialPtr>& materials)
 {
     // Load the given document.
     mx::DocumentPtr doc = mx::createDocument();
     mx::readFromXmlFile(doc, filePath);
     doc->setSourceUri(filePath);
+    mx::CopyOptions copyOptions;
+    copyOptions.skipDuplicateElements = true;
+    doc->importLibrary(libraries, &copyOptions);
 
     // Remap node names if requested.
     for (mx::ElementPtr elem : doc->traverseTree())
@@ -125,6 +128,8 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, const mx::S
             materials.push_back(mat);
         }
     }
+
+    return doc;
 }
 
 bool Material::generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
