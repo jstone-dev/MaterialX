@@ -77,7 +77,7 @@ class Viewer : public ng::Screen
 
     void updatePropertyEditor();
 
-    void createLoadMaterialsInterface(const std::string label, bool clearExistingMaterials);
+    void createLoadMaterialsInterface(Widget *parent, const std::string label, bool clearExistingMaterials);
     void createLookAssignmentInterface();
 
   private:

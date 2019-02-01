@@ -203,9 +203,9 @@ void Viewer::createLookAssignmentInterface()
     });
 }
 
-void Viewer::createLoadMaterialsInterface(const std::string label, bool clearExistingMaterials)
+void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string label, bool clearExistingMaterials)
 {
-    ng::Button* materialButton = new ng::Button(_window, label);
+    ng::Button* materialButton = new ng::Button(parent, label);
     materialButton->setIcon(ENTYPO_ICON_FOLDER);
     materialButton->setCallback([this, clearExistingMaterials]()
     {
@@ -306,7 +306,18 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         mProcessEvents = true;
     });
 
-    createLoadMaterialsInterface("Load Material(s)", true);
+    ng::PopupButton *materialsBtn = new ng::PopupButton(_window, "Materials");
+    materialsBtn->setIcon(ENTYPO_ICON_FOLDER);
+    //materialsBtn->setBackgroundColor(Color(100, 0, 0, 25));
+    ng::Popup *materialsPopup = materialsBtn->popup();
+    materialsPopup->setAnchorHeight(61);
+    materialsPopup->setLayout(new ng::GroupLayout());
+    Widget *statePanel = new Widget(materialsPopup);
+    statePanel->setLayout(new ng::BoxLayout(ng::Orientation::Horizontal, ng::Alignment::Middle, 0, 5));
+    // Add material load options
+    createLoadMaterialsInterface(statePanel, "Load Material(s)", true);
+    // TODO: Add appending materials createLoadMaterialsInterface(statePanel, "Add Material(s)", false);
+
     createLookAssignmentInterface();
 
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
