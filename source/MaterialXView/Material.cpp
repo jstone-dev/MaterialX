@@ -151,9 +151,13 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
     return doc;
 }
 
-bool Material::generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
+bool Material::generateShader(const mx::FileSearchPath& searchPath)
 {
-    _hwShader = generateSource(searchPath, elem);
+    if (!_elem)
+    {
+        return false;
+    }
+    _hwShader = generateSource(searchPath, _elem);
     if (!_hwShader)
     {
         return false;
@@ -163,7 +167,7 @@ bool Material::generateShader(const mx::FileSearchPath& searchPath, mx::ElementP
     std::string pixelShader = _hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
 
     _glShader = std::make_shared<ng::GLShader>();
-    _glShader->init(elem->getNamePath(), vertexShader, pixelShader);
+    _glShader->init(_elem->getNamePath(), vertexShader, pixelShader);
 
     _hasTransparency = _hwShader->hasTransparency();
 
@@ -208,22 +212,25 @@ void Material::bindMesh(const mx::MeshPtr mesh) const
     }
 }
 
-void Material::bindPartition(mx::MeshPartitionPtr part) const
+bool Material::bindPartition(mx::MeshPartitionPtr part) const
 {
     if (!_glShader)
     {
-        return;
+        return false;
     }
 
     _glShader->bind();
     MatrixXuProxy indices(&part->getIndices()[0], 3, part->getIndices().size() / 3);
     _glShader->uploadIndices(indices);
+    
+    return true;
 }
 
 void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj)
 {
     if (!_glShader)
     {
+        std::cout << "* No shader for bind view info for material: " << _elem->getName() << std::endl;
         return;
     }
 
@@ -342,7 +349,10 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
 
 void Material::drawPartition(mx::MeshPartitionPtr part) const
 {
-    bindPartition(part);
+    if (!bindPartition(part))
+    {
+        return;
+    }
     _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) part->getFaceCount());
 }
 

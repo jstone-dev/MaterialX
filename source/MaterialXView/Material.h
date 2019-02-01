@@ -62,7 +62,7 @@ class Material
     }
 
     /// Generate a shader from the given inputs.
-    bool generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
+    bool generateShader(const mx::FileSearchPath& searchPath);
 
     /// Return the underlying OpenGL shader.
     GLShaderPtr getShader() const
@@ -93,7 +93,7 @@ class Material
     void bindMesh(mx::MeshPtr mesh) const;
 
     /// Bind a mesh partition to this material.
-    void bindPartition(mx::MeshPartitionPtr part) const;
+    bool bindPartition(mx::MeshPartitionPtr part) const;
 
     /// Draw the given mesh partition.
     void drawPartition(mx::MeshPartitionPtr part) const;

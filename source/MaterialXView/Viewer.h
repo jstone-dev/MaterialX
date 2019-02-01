@@ -77,6 +77,9 @@ class Viewer : public ng::Screen
 
     void updatePropertyEditor();
 
+    void createLoadMaterialsInterface(const std::string label, bool clearExistingMaterials);
+    void createLookAssignmentInterface();
+
   private:
     ng::Window* _window;
     ng::Arcball _arcball;
