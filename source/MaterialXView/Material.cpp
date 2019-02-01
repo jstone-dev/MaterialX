@@ -69,6 +69,7 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, const mx::S
     // Load the given document.
     mx::DocumentPtr doc = mx::createDocument();
     mx::readFromXmlFile(doc, filePath);
+    doc->setSourceUri(filePath);
 
     // Remap node names if requested.
     for (mx::ElementPtr elem : doc->traverseTree())

@@ -56,7 +56,9 @@ class Viewer : public ng::Screen
   private:
     void initializeDocument(mx::DocumentPtr libraries);
     void importMaterials(mx::DocumentPtr materials);
-    void assignMaterial(MaterialPtr material);
+
+    /// Assign material ro a given geometry if given. If an empty supplied,
+    /// then assign to all geometries.
     void assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry);
     void initCamera();
     void computeCameraMatrices(mx::Matrix44& world,
