@@ -140,7 +140,7 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
     doc->setSourceUri(filePath);
     mx::CopyOptions copyOptions;
     copyOptions.skipDuplicateElements = true;
-    doc->importLibrary(stdLib, &copyOptions);
+    doc->importLibrary(libraries, &copyOptions);
 
     // Remap references to unimplemented shader nodedefs.
     for (mx::MaterialPtr material : doc->getMaterials())

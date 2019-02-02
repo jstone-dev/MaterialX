@@ -125,8 +125,10 @@ void Viewer::createLookAssignmentInterface()
                 mx::DocumentPtr lookDoc = mx::createDocument();
                 mx::readFromXmlFile(lookDoc, filename);
                 std::vector<mx::LookPtr> looks = lookDoc->getLooks();
-                for (auto look : looks)
+                // For now only handle the first look as sets of looks are not stored
+                if (!looks.empty())
                 {
+                    auto look = looks[0];
                     std::vector<mx::MaterialAssignPtr> assignments = look->getMaterialAssigns();
                     for (auto assignment : assignments)
                     {
@@ -221,7 +223,7 @@ void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string labe
                     initializeDocument(_stdLib);
                 }
                 std::vector<MaterialPtr> newMaterials;
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, modifiers);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
                 if (newMaterials.size())
                 {
                     importMaterials(materialDoc);
@@ -433,6 +435,7 @@ bool Viewer::setGeometrySelection(size_t index)
 {
     if (index < _geometryList.size())
     {
+        _geometryListBox->setSelectedIndex((int)index);
         _selectedGeom = index;
         return true;
     }
@@ -527,7 +530,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             if (!_materialFilename.isEmpty())
             {
                 initializeDocument(_stdLib);
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, modifiers);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, _modifiers);
                 importMaterials(materialDoc);
                 updateMaterialSelections();
                 setMaterialSelection(0);
