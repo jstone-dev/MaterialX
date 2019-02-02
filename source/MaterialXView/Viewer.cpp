@@ -301,10 +301,10 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _translationStart(0, 0),
     _libraryFolders(libraryFolders),
     _searchPath(searchPath),
-    _modifiers(modifiers),
     _materialFilename(materialFilename),
-    _envSamples(DEFAULT_ENV_SAMPLES),
-    _selectedGeom(0)
+    _modifiers(modifiers),
+    _selectedGeom(0),
+    _envSamples(DEFAULT_ENV_SAMPLES)
 {
     _window = new ng::Window(this, "Viewer Options");
     _window->setPosition(ng::Vector2i(15, 15));
@@ -472,7 +472,7 @@ MaterialPtr Viewer::setMaterialSelection(size_t index)
 {
     if (index >= _materials.size())
     {
-        return false;
+        return nullptr;
     }
 
     // Update UI selection and internal value
