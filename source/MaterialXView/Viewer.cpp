@@ -109,6 +109,39 @@ void Viewer::assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry)
     }
 }
 
+void Viewer::createLoadMeshInterface()
+{
+    ng::Button* meshButton = new ng::Button(_window, "Load Mesh");
+    meshButton->setIcon(ENTYPO_ICON_FOLDER);
+    meshButton->setCallback([this]()
+    {
+        mProcessEvents = false;
+        std::string filename = ng::file_dialog({ { "obj", "Wavefront OBJ" } }, false);
+        if (!filename.empty())
+        {
+            _geometryHandler.clearGeometry();
+            if (_geometryHandler.loadGeometry(filename))
+            {
+                updateGeometrySelections();
+                // Clear out any previous assignments
+                _materialAssignments.clear();
+                // Bind the currently selected material (if any) to the geometry loaded in
+                MaterialPtr material = getSelectedMaterial();
+                if (material)
+                {
+                    assignMaterial(material, nullptr);
+                }
+                initCamera();
+            }
+            else
+            {
+                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Mesh Loading Error", filename);
+            }
+        }
+        mProcessEvents = true;
+    });
+}
+
 void Viewer::createLookAssignmentInterface()
 {
     ng::Button* lookButton = new ng::Button(_window, "Assign Look");
@@ -276,39 +309,10 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _window->setPosition(ng::Vector2i(15, 15));
     _window->setLayout(new ng::GroupLayout());
 
-    ng::Button* meshButton = new ng::Button(_window, "Load Mesh"); 
-    meshButton->setIcon(ENTYPO_ICON_FOLDER);
-    meshButton->setCallback([this]()
-    {
-        mProcessEvents = false;
-        std::string filename = ng::file_dialog({{"obj", "Wavefront OBJ"}}, false);
-        if (!filename.empty())
-        {
-            _geometryHandler.clearGeometry();
-            if (_geometryHandler.loadGeometry(filename))
-            {
-                updateGeometrySelections();
-                // Clear out any previous assignments
-                _materialAssignments.clear();
-                // Bind the currently selected material (if any) to the geometry loaded in
-                MaterialPtr material = getSelectedMaterial();
-                if (material)
-                {
-                    assignMaterial(material, nullptr);
-                }
-                initCamera();
-            }
-            else
-            {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Mesh Loading Error", filename);
-            }
-        }
-        mProcessEvents = true;
-    });
+    createLoadMeshInterface();
 
     ng::PopupButton *materialsBtn = new ng::PopupButton(_window, "Materials");
     materialsBtn->setIcon(ENTYPO_ICON_FOLDER);
-    //materialsBtn->setBackgroundColor(Color(100, 0, 0, 25));
     ng::Popup *materialsPopup = materialsBtn->popup();
     materialsPopup->setAnchorHeight(61);
     materialsPopup->setLayout(new ng::GroupLayout());
@@ -316,7 +320,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     statePanel->setLayout(new ng::BoxLayout(ng::Orientation::Horizontal, ng::Alignment::Middle, 0, 5));
     // Add material load options
     createLoadMaterialsInterface(statePanel, "Load Material(s)", true);
-    // TODO: Add appending materials createLoadMaterialsInterface(statePanel, "Add Material(s)", false);
+    createLoadMaterialsInterface(statePanel, "Add Material(s)", false);
 
     createLookAssignmentInterface();
 
@@ -343,7 +347,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
     });
 
-    _geomLabel = new ng::Label(_window, "Set Active Geometry");
+    _geomLabel = new ng::Label(_window, "Select Geometry");
     _geometryListBox = new ng::ComboBox(_window, {"None"});
     _geometryListBox->setChevronIcon(-1);
     _geometryListBox->setCallback([this](int choice)
@@ -351,7 +355,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         setGeometrySelection(choice);
     });
 
-    _materialLabel = new ng::Label(_window, "Assign Material To Active Geometry");
+    _materialLabel = new ng::Label(_window, "Assign Material To Selected Geometry");
     _materialSelectionBox = new ng::ComboBox(_window, {"None"});
     _materialSelectionBox->setChevronIcon(-1);
     _materialSelectionBox->setCallback([this](int choice)

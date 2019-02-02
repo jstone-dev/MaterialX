@@ -76,6 +76,7 @@ class Viewer : public ng::Screen
 
     void updatePropertyEditor();
 
+    void createLoadMeshInterface();
     void createLoadMaterialsInterface(Widget *parent, const std::string label, bool clearExistingMaterials);
     void createLookAssignmentInterface();
 
@@ -104,7 +105,6 @@ class Viewer : public ng::Screen
     mx::DocumentPtr _stdLib;
     mx::DocumentPtr _doc;
     mx::FilePath _materialFilename;
-
     DocumentModifiers _modifiers;
 
     // List of available materials and UI
