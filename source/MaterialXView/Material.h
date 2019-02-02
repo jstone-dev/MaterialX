@@ -21,6 +21,14 @@ using GLShaderPtr = std::shared_ptr<ng::GLShader>;
 
 using StringPair = std::pair<std::string, std::string>;
 
+class DocumentModifiers
+{
+  public:
+    mx::StringMap remapElements;
+    mx::StringSet skipElements;
+    std::string filePrefixTerminator;
+};
+
 class Material
 {
   public:
@@ -35,7 +43,7 @@ class Material
     /// Load a new document containing renderable materials.
     /// Returns a document and a list of loaded Materials.
     static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries,  std::vector<MaterialPtr>& materials, 
-                                        mx::StringMap remapElements, mx::StringSet skipElements);
+                                        const DocumentModifiers& modifiers);
 
     /// Return the renderable element associated with this material
     mx::TypedElementPtr getElement() const

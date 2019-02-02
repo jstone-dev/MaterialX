@@ -60,49 +60,87 @@ mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::Element
     return std::dynamic_pointer_cast<mx::HwShader>(sgShader);
 }
 
+bool stringEndsWith(const std::string& str, std::string const& end)
+{
+    if (str.length() >= end.length())
+    {
+        return !str.compare(str.length() - end.length(), end.length(), end);
+    }
+    else
+    {
+        return false;
+    }
+}
+
 //
 // Material methods
 //
 mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, std::vector<MaterialPtr>& materials,
-                                       mx::StringMap remapElements, mx::StringSet skipElements)
+                            const DocumentModifiers& modifiers)
 {
     // Load the given document.
     mx::DocumentPtr doc = mx::createDocument();
-    mx::readFromXmlFile(doc, filePath);
-    doc->setSourceUri(filePath);
-    mx::CopyOptions copyOptions;
-    copyOptions.skipDuplicateElements = true;
-    doc->importLibrary(libraries, &copyOptions);
 
-    // Remap and skip elements if requested.
+    // Load the content document.
+    doc = mx::createDocument();
+    mx::XmlReadOptions readOptions;
+    readOptions.readXIncludeFunction = [](mx::DocumentPtr doc, const std::string& filename, const std::string& searchPath, const mx::XmlReadOptions* options)
+    {
+        mx::FilePath resolvedFilename = mx::FileSearchPath(searchPath).find(filename);
+        if (resolvedFilename.exists())
+        {
+            readFromXmlFile(doc, resolvedFilename, mx::EMPTY_STRING, options);
+        }
+        else
+        {
+            std::cerr << "Include file not found: " << filename << std::endl;
+        }
+    };
+    mx::readFromXmlFile(doc, filePath, mx::EMPTY_STRING, &readOptions);
+
+    // Apply modifiers to the content document if requested.
     for (mx::ElementPtr elem : doc->traverseTree())
     {
-        if (remapElements.count(elem->getCategory()))
+        if (modifiers.remapElements.count(elem->getCategory()))
         {
-            elem->setCategory(remapElements.at(elem->getCategory()));
+            elem->setCategory(modifiers.remapElements.at(elem->getCategory()));
         }
-        if (remapElements.count(elem->getName()))
+        if (modifiers.remapElements.count(elem->getName()))
         {
-            elem->setName(remapElements.at(elem->getName()));
+            elem->setName(modifiers.remapElements.at(elem->getName()));
         }
         mx::StringVec attrNames = elem->getAttributeNames();
         for (const std::string& attrName : attrNames)
         {
-            if (remapElements.count(elem->getAttribute(attrName)))
+            if (modifiers.remapElements.count(elem->getAttribute(attrName)))
             {
-                elem->setAttribute(attrName, remapElements.at(elem->getAttribute(attrName)));
+                elem->setAttribute(attrName, modifiers.remapElements.at(elem->getAttribute(attrName)));
+            }
+        }
+        if (elem->hasFilePrefix() && !modifiers.filePrefixTerminator.empty())
+        {
+            std::string filePrefix = elem->getFilePrefix();
+            if (!stringEndsWith(filePrefix, modifiers.filePrefixTerminator))
+            {
+                elem->setFilePrefix(filePrefix + modifiers.filePrefixTerminator);
             }
         }
         std::vector<mx::ElementPtr> children = elem->getChildren();
         for (mx::ElementPtr child : children)
         {
-            if (skipElements.count(child->getCategory()) ||
-                skipElements.count(child->getName()))
+            if (modifiers.skipElements.count(child->getCategory()) ||
+                modifiers.skipElements.count(child->getName()))
             {
                 elem->removeChild(child->getName());
             }
         }
     }
+
+   // Import the given libraries.
+    doc->setSourceUri(filePath);
+    mx::CopyOptions copyOptions;
+    copyOptions.skipDuplicateElements = true;
+    doc->importLibrary(stdLib, &copyOptions);
 
     // Remap references to unimplemented shader nodedefs.
     for (mx::MaterialPtr material : doc->getMaterials())

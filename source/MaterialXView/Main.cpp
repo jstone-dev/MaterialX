@@ -16,8 +16,7 @@ int main(int argc, char* const argv[])
     mx::FileSearchPath searchPath;
     std::string meshFilename = "documents/TestSuite/Geometry/teapot.obj";
     std::string materialFilename = "documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx";
-    mx::StringMap remapElements;
-    mx::StringSet skipElements;
+    DocumentModifiers modifiers;
     int multiSampleCount = 0;
 
     for (size_t i = 0; i < tokens.size(); i++)
@@ -45,12 +44,16 @@ int main(int argc, char* const argv[])
             mx::StringVec vec = mx::splitString(nextToken, ":");
             if (vec.size() == 2)
             {
-                remapElements[vec[0]] = vec[1];
+                modifiers.remapElements[vec[0]] = vec[1];
             }
         }
         if (token == "--skip" && !nextToken.empty())
         {
-            skipElements.insert(nextToken);
+            modifiers.skipElements.insert(nextToken);
+        }
+        if (token == "--terminator" && !nextToken.empty())
+        {
+            modifiers.filePrefixTerminator = nextToken;
         }
         if (token == "--msaa" && !nextToken.empty())
         {
@@ -67,8 +70,7 @@ int main(int argc, char* const argv[])
                                                 searchPath,
                                                 meshFilename,
                                                 materialFilename,
-                                                remapElements,
-                                                skipElements,
+                                                modifiers,
                                                 multiSampleCount);
             viewer->setVisible(true);
             ng::mainloop();

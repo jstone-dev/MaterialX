@@ -15,8 +15,7 @@ class Viewer : public ng::Screen
            const mx::FileSearchPath& searchPath,
            const std::string meshFilename,
            const std::string materialFilename,
-           const mx::StringMap& nodeRemap,
-           const mx::StringSet& elementSkip,
+           const DocumentModifiers& modifiers,
            int multiSampleCount);
     ~Viewer() { }
 
@@ -102,13 +101,11 @@ class Viewer : public ng::Screen
     // Document management
     mx::StringVec _libraryFolders;
     mx::FileSearchPath _searchPath;
-    mx::StringMap _nodeRemap;
     mx::DocumentPtr _stdLib;
     mx::DocumentPtr _doc;
     mx::FilePath _materialFilename;
 
-    mx::StringMap _remapElements;
-    mx::StringSet _skipElements;
+    DocumentModifiers _modifiers;
 
     // List of available materials and UI
     std::vector<MaterialPtr> _materials;

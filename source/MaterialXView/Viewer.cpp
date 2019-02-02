@@ -221,7 +221,7 @@ void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string labe
                     initializeDocument(_stdLib);
                 }
                 std::vector<MaterialPtr> newMaterials;
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _remapElements, _skipElements);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, modifiers);
                 if (newMaterials.size())
                 {
                     importMaterials(materialDoc);
@@ -248,8 +248,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
                const mx::FileSearchPath& searchPath,
                const std::string meshFilename,
                const std::string materialFilename,
-               const mx::StringMap& nodeRemap,
-               const mx::StringSet& elementSkip,
+               const DocumentModifiers& modifiers,
                int multiSampleCount) :
     ng::Screen(ng::Vector2i(1280, 960), "MaterialXView",
         true, false,
@@ -266,8 +265,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _translationStart(0, 0),
     _libraryFolders(libraryFolders),
     _searchPath(searchPath),
-    _remapElements(nodeRemap),
-    _skipElements(elementSkip),
+    _modifiers(modifiers),
     _materialFilename(materialFilename),
     _envSamples(DEFAULT_ENV_SAMPLES),
     _selectedGeom(0)
@@ -381,8 +379,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     try
     {
-        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, 
-                                                             _remapElements, _skipElements);
+        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, modifiers);
         importMaterials(materialDoc);            
         updateMaterialSelections();
         setMaterialSelection(0);
@@ -530,7 +527,7 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             if (!_materialFilename.isEmpty())
             {
                 initializeDocument(_stdLib);
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, _remapElements, _skipElements);
+                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, modifiers);
                 importMaterials(materialDoc);
                 updateMaterialSelections();
                 setMaterialSelection(0);
