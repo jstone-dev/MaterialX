@@ -265,7 +265,6 @@ void Material::bindViewInformation(const mx::Matrix44& world, const mx::Matrix44
 {
     if (!_glShader)
     {
-        std::cout << "* No shader for bind view info for material: " << _elem->getName() << std::endl;
         return;
     }
 
