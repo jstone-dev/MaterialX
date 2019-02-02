@@ -238,11 +238,11 @@ void Viewer::createLookAssignmentInterface()
     });
 }
 
-void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string label, bool clearExistingMaterials)
+void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string label)
 {
     ng::Button* materialButton = new ng::Button(parent, label);
     materialButton->setIcon(ENTYPO_ICON_FOLDER);
-    materialButton->setCallback([this, clearExistingMaterials]()
+    materialButton->setCallback([this]()
     {
         mProcessEvents = false;
         std::string filename = ng::file_dialog({ { "mtlx", "MaterialX" } }, false);
@@ -251,22 +251,23 @@ void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string labe
             _materialFilename = filename;
             try
             {
-                if (clearExistingMaterials)
+                if (_clearExistingMaterials)
                 {
                     initializeDocument(_stdLib);
-                }
-                std::vector<MaterialPtr> newMaterials;
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
-                if (newMaterials.size())
-                {
-                    importMaterials(materialDoc);
-                    _materials.insert(_materials.end(), newMaterials.begin(), newMaterials.end());
-                    updateMaterialSelections();
-                    if (clearExistingMaterials)
+                    std::vector<MaterialPtr> newMaterials;
+                    mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
+                    if (newMaterials.size())
                     {
+                        importMaterials(materialDoc);
+                        _materials.insert(_materials.end(), newMaterials.begin(), newMaterials.end());
+                        updateMaterialSelections();
                         setMaterialSelection(0);
                         assignMaterial(newMaterials[0], nullptr);
                     }
+                }
+                else
+                {
+                    // TODO: Add material append.
                 }
             }
             catch (std::exception& e)
@@ -319,8 +320,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     Widget *statePanel = new Widget(materialsPopup);
     statePanel->setLayout(new ng::BoxLayout(ng::Orientation::Horizontal, ng::Alignment::Middle, 0, 5));
     // Add material load options
-    createLoadMaterialsInterface(statePanel, "Load Material(s)", true);
-    createLoadMaterialsInterface(statePanel, "Add Material(s)", false);
+    createLoadMaterialsInterface(statePanel, "Load Material(s)");
 
     createLookAssignmentInterface();
 

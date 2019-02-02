@@ -77,7 +77,7 @@ class Viewer : public ng::Screen
     void updatePropertyEditor();
 
     void createLoadMeshInterface();
-    void createLoadMaterialsInterface(Widget *parent, const std::string label, bool clearExistingMaterials);
+    void createLoadMaterialsInterface(Widget *parent, const std::string label);
     void createLookAssignmentInterface();
 
   private:
@@ -113,6 +113,7 @@ class Viewer : public ng::Screen
     // UI:
     ng::Label* _materialLabel;
     ng::ComboBox* _materialSelectionBox;
+    bool _clearExistingMaterials = true;
     // Property editor: Currently shows only selected material
     PropertyEditor _propertyEditor;
 

@@ -78,11 +78,8 @@ bool stringEndsWith(const std::string& str, std::string const& end)
 mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, std::vector<MaterialPtr>& materials,
                             const DocumentModifiers& modifiers)
 {
-    // Load the given document.
-    mx::DocumentPtr doc = mx::createDocument();
-
     // Load the content document.
-    doc = mx::createDocument();
+    mx::DocumentPtr doc = mx::createDocument();
     mx::XmlReadOptions readOptions;
     readOptions.readXIncludeFunction = [](mx::DocumentPtr doc, const std::string& filename, const std::string& searchPath, const mx::XmlReadOptions* options)
     {
