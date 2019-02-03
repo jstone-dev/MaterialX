@@ -206,7 +206,7 @@ vector<PortElementPtr> Document::getMatchingPorts(const string& nodeName) const
     return ports;
 }
 
-ValuePtr Document::getGeomAttrValue(const string& geomAttrName, const string& geom)
+ValuePtr Document::getGeomAttrValue(const string& geomAttrName, const string& geom) const
 {
     ValuePtr value;
     for (GeomInfoPtr geomInfo : getGeomInfos())
@@ -444,6 +444,38 @@ void Document::upgradeVersion()
                     input->removeAttribute("graphoutput");
                 }
             }
+        }
+
+        // Combine udim assignments into udim sets.
+        if (getGeomAttrValue("udim") && !getGeomAttrValue("udimset"))
+        {
+            StringSet udimSet;
+            for (GeomInfoPtr geomInfo : getGeomInfos())
+            {
+                for (GeomAttrPtr geomAttr : geomInfo->getGeomAttrs())
+                {
+                    if (geomAttr->getName() == "udim")
+                    {
+                        udimSet.insert(geomAttr->getValueString());
+                    }
+                }
+            }
+
+            std::string udimSetString;
+            for (const std::string& udim : udimSet)
+            {
+                if (udimSetString.empty())
+                {
+                    udimSetString = udim;
+                }
+                else
+                {
+                    udimSetString += ", " + udim;
+                }
+            }
+
+            GeomInfoPtr udimSetInfo = addGeomInfo();
+            udimSetInfo->setGeomAttrValue("udimset", udimSetString, getTypeString<StringVec>());
         }
 
         minorVersion = 34;

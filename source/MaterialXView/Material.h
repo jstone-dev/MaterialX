@@ -21,57 +21,56 @@ using GLShaderPtr = std::shared_ptr<ng::GLShader>;
 
 using StringPair = std::pair<std::string, std::string>;
 
-class MaterialSubset
+class DocumentModifiers
 {
   public:
-    mx::TypedElementPtr elem;
-    std::string udim;
+    mx::StringMap remapElements;
+    mx::StringSet skipElements;
+    std::string filePrefixTerminator;
 };
 
 class Material
 {
   public:
-    Material() :
-        _subsetIndex(0)
-    {
-    }
+    Material() {}
     ~Material() { }
 
-    /// Load a new content document.
-    void loadDocument(const mx::FilePath& filePath, mx::DocumentPtr stdLib, const mx::StringMap& nodeRemap);
-
-    /// Return the content document.
-    mx::DocumentPtr getDocument()
+    static MaterialPtr create()
     {
-        return _doc;
+        return std::make_shared<Material>();
     }
 
-    /// Return the vector of material subsets.
-    const std::vector<MaterialSubset>& getSubsets()
+    /// Load a new document containing renderable materials.
+    /// Returns a document and a list of loaded Materials.
+    static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries,  std::vector<MaterialPtr>& materials, 
+                                        const DocumentModifiers& modifiers);
+
+    /// Return the renderable element associated with this material
+    mx::TypedElementPtr getElement() const
     {
-        return _subsets;
+        return _elem;
     }
 
-    /// Return the current material subset.
-    const MaterialSubset& getCurrentSubset()
+    /// Set the renderable element associated with this material
+    void setElement(mx::TypedElementPtr val)
     {
-        return _subsets[_subsetIndex];
+        _elem = val;
     }
 
-    /// Set the current material subset index.
-    void setSubsetIndex(size_t index)
+    /// Get any associated udim identifier
+    const std::string& getUdim()
     {
-        _subsetIndex = index;
+        return _udim;
     }
 
-    /// Return the current material subset index.
-    size_t getSubsetIndex()
+    /// Set udim identifier
+    void setUdim(const std::string& val)
     {
-        return _subsetIndex;
+        _udim = val;
     }
 
     /// Generate a shader from the given inputs.
-    bool generateShader(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
+    bool generateShader(const mx::FileSearchPath& searchPath);
 
     /// Return the underlying OpenGL shader.
     GLShaderPtr getShader() const
@@ -102,7 +101,7 @@ class Material
     void bindMesh(mx::MeshPtr mesh) const;
 
     /// Bind a mesh partition to this material.
-    void bindPartition(mx::MeshPartitionPtr part) const;
+    bool bindPartition(mx::MeshPartitionPtr part) const;
 
     /// Draw the given mesh partition.
     void drawPartition(mx::MeshPartitionPtr part) const;
@@ -114,11 +113,10 @@ class Material
     mx::Shader::Variable* findUniform(const std::string& path) const;
 
   protected:
-    mx::DocumentPtr _doc;
     GLShaderPtr _glShader;
     mx::HwShaderPtr _hwShader;
-    std::vector<MaterialSubset> _subsets;
-    size_t _subsetIndex;
+    mx::TypedElementPtr _elem;
+    std::string _udim;
     bool _hasTransparency;
 };
 

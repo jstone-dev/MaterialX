@@ -170,7 +170,7 @@ class Document : public GraphElement
     }
 
     /// Return the value of a geometric attribute for the given geometry string.
-    ValuePtr getGeomAttrValue(const string& geomAttrName, const string& geom = UNIVERSAL_GEOM_NAME);
+    ValuePtr getGeomAttrValue(const string& geomAttrName, const string& geom = UNIVERSAL_GEOM_NAME) const;
 
     /// @}
     /// @name GeomPropDef Elements
@@ -203,7 +203,7 @@ class Document : public GraphElement
     void removeGeomPropDef(const string& name)
     {
         removeChildOfType<GeomPropDef>(name);
-    }
+    }    
 
     /// @}
     /// @name Look Elements
