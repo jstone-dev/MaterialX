@@ -76,9 +76,9 @@ class Viewer : public ng::Screen
 
     void updatePropertyEditor();
 
-    void createLoadMeshInterface(Widget *parent, const std::string label);
-    void createLoadMaterialsInterface(Widget *parent, const std::string label);
-    void createLookAssignmentInterface();
+    void createLoadMeshInterface(Widget* parent, const std::string label);
+    void createLoadMaterialsInterface(Widget* parent, const std::string label);
+    void createAdvancedSettings(Widget* parent);
 
   private:
     ng::Window* _window;
@@ -131,7 +131,13 @@ class Viewer : public ng::Screen
     mx::GeometryHandler _geometryHandler;
     mx::GLTextureHandlerPtr _imageHandler;
 
-    // FIS sample count
+    // Mesh options
+    bool _splitByUdims;
+
+    // Material options
+    bool _assignLooks;
+
+    // Render options
     int _envSamples;
 };
 

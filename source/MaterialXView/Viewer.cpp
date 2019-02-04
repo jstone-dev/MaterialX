@@ -85,6 +85,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _materialFilename(materialFilename),
     _modifiers(modifiers),
     _selectedGeom(0),
+    _splitByUdims(false),
+    _assignLooks(false),
     _envSamples(DEFAULT_ENV_SAMPLES)
 {
     _window = new ng::Window(this, "Viewer Options");
@@ -93,7 +95,6 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     createLoadMeshInterface(_window, "Load Mesh");
     createLoadMaterialsInterface(_window, "Load Material");
-    createLookAssignmentInterface();
 
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
     editorButton->setFlags(ng::Button::ToggleButton);
@@ -103,20 +104,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         performLayout();
     });
 
-    mx::StringVec sampleOptions;
-    for (int i = MIN_ENV_SAMPLES; i <= MAX_ENV_SAMPLES; i *= 4)
-    {
-        mProcessEvents = false;
-        sampleOptions.push_back("Samples " + std::to_string(i));
-        mProcessEvents = true;
-    }
-    ng::ComboBox* sampleBox = new ng::ComboBox(_window, sampleOptions);
-    sampleBox->setChevronIcon(-1);
-    sampleBox->setSelectedIndex((int) std::log2(DEFAULT_ENV_SAMPLES / MIN_ENV_SAMPLES) / 2);
-    sampleBox->setCallback([this](int index)
-    {
-        _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
-    });
+    createAdvancedSettings(_window);
 
     _geomLabel = new ng::Label(_window, "Select Geometry");
     _geometryListBox = new ng::ComboBox(_window, {"None"});
@@ -126,7 +114,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         setGeometrySelection(choice);
     });
 
-    _materialLabel = new ng::Label(_window, "Assign Material To Selected Geometry");
+    _materialLabel = new ng::Label(_window, "Assigned Material");
     _materialSelectionBox = new ng::ComboBox(_window, {"None"});
     _materialSelectionBox->setChevronIcon(-1);
     _materialSelectionBox->setCallback([this](int choice)
@@ -223,7 +211,7 @@ void Viewer::assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry)
     }
 }
 
-void Viewer::createLoadMeshInterface(Widget *parent, const std::string label)
+void Viewer::createLoadMeshInterface(Widget* parent, const std::string label)
 {
     ng::Button* meshButton = new ng::Button(parent, label);
     meshButton->setIcon(ENTYPO_ICON_FOLDER);
@@ -236,6 +224,11 @@ void Viewer::createLoadMeshInterface(Widget *parent, const std::string label)
             _geometryHandler.clearGeometry();
             if (_geometryHandler.loadGeometry(filename))
             {
+                if (_splitByUdims && !_geometryHandler.getMeshes().empty())
+                {
+                    _geometryHandler.getMeshes()[0]->splitByUdims();
+                }
+
                 updateGeometrySelections();
                 // Clear out any previous assignments
                 _materialAssignments.clear();
@@ -256,7 +249,7 @@ void Viewer::createLoadMeshInterface(Widget *parent, const std::string label)
     });
 }
 
-void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string label)
+void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string label)
 {
     ng::Button* materialButton = new ng::Button(parent, label);
     materialButton->setIcon(ENTYPO_ICON_FOLDER);
@@ -266,132 +259,169 @@ void Viewer::createLoadMaterialsInterface(Widget *parent, const std::string labe
         std::string filename = ng::file_dialog({ { "mtlx", "MaterialX" } }, false);
         if (!filename.empty())
         {
-            _materialFilename = filename;
-            try
+            if (_assignLooks)
             {
-                if (_clearExistingMaterials)
+                try
                 {
-                    initializeDocument(_stdLib);
-                    std::vector<MaterialPtr> newMaterials;
-                    mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
-                    if (newMaterials.size())
+                    // Assign any materials found to geometry
+                    mx::DocumentPtr lookDoc = mx::createDocument();
+                    mx::readFromXmlFile(lookDoc, filename);
+                    std::vector<mx::LookPtr> looks = lookDoc->getLooks();
+                    // For now only handle the first look as sets of looks are not stored
+                    if (!looks.empty())
                     {
-                        importMaterials(materialDoc);
-                        _materials.insert(_materials.end(), newMaterials.begin(), newMaterials.end());
-                        updateMaterialSelections();
-                        setMaterialSelection(0);
-                        assignMaterial(newMaterials[0]);
-                    }
-                }
-                else
-                {
-                    // TODO: Add material append.
-                }
-            }
-            catch (std::exception& e)
-            {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
-            }
-        }
-        mProcessEvents = true;
-    });
-}
-
-void Viewer::createLookAssignmentInterface()
-{
-    ng::Button* lookButton = new ng::Button(_window, "Assign Look");
-    lookButton->setIcon(ENTYPO_ICON_DOCUMENT);
-    lookButton->setCallback([this]()
-    {
-        mProcessEvents = false;
-        std::string filename = ng::file_dialog({ { "mtlx", "MaterialX" } }, false);
-        if (!filename.empty())
-        {
-            try
-            {
-                // Assign any materials found to geometry
-                mx::DocumentPtr lookDoc = mx::createDocument();
-                mx::readFromXmlFile(lookDoc, filename);
-                std::vector<mx::LookPtr> looks = lookDoc->getLooks();
-                // For now only handle the first look as sets of looks are not stored
-                if (!looks.empty())
-                {
-                    auto look = looks[0];
-                    std::vector<mx::MaterialAssignPtr> assignments = look->getMaterialAssigns();
-                    for (auto assignment : assignments)
-                    {
-                        // Find if material exists
-                        std::string materialName = assignment->getMaterial();
-
-                        MaterialPtr assignedMaterial = nullptr;
-                        size_t assigneMaterialIndex = 0;
-                        for (size_t i = 0; i<_materials.size(); i++)
+                        auto look = looks[0];
+                        std::vector<mx::MaterialAssignPtr> assignments = look->getMaterialAssigns();
+                        for (auto assignment : assignments)
                         {
-                            MaterialPtr mat = _materials[i];
-                            ;                           mx::TypedElementPtr elem = mat->getElement();
-                            mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
-                            mx::MaterialPtr materialRef = shaderRef ? shaderRef->getParent()->asA<mx::Material>() : nullptr;
-                            if (materialRef)
+                            // Find if material exists
+                            std::string materialName = assignment->getMaterial();
+
+                            MaterialPtr assignedMaterial = nullptr;
+                            size_t assigneMaterialIndex = 0;
+                            for (size_t i = 0; i<_materials.size(); i++)
                             {
-                                if (materialRef->getName() == materialName)
+                                MaterialPtr mat = _materials[i];
+                                ;                           mx::TypedElementPtr elem = mat->getElement();
+                                mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
+                                mx::MaterialPtr materialRef = shaderRef ? shaderRef->getParent()->asA<mx::Material>() : nullptr;
+                                if (materialRef)
                                 {
-                                    assignedMaterial = mat;
-                                    assigneMaterialIndex = i;
+                                    if (materialRef->getName() == materialName)
+                                    {
+                                        assignedMaterial = mat;
+                                        assigneMaterialIndex = i;
+                                        break;
+                                    }
+                                }
+                                if (assignedMaterial)
+                                {
                                     break;
                                 }
                             }
-                            if (assignedMaterial)
+                            if (!assignedMaterial)
                             {
-                                break;
+                                continue;
                             }
-                        }
-                        if (!assignedMaterial)
-                        {
-                            continue;
-                        }
 
-                        // Find if geometry to assign exists and if so assign
-                        // material to it.
-                        mx::StringVec geomList;
-                        std::string geom = assignment->getGeom();
-                        if (geom.size())
-                        {
-                            geomList.push_back(geom);
-                        }
-                        else
-                        {
-                            mx::CollectionPtr collection = assignment->getCollection();
-                            const std::string geomListString = collection->getIncludeGeom();
-                            geomList = mx::splitString(geomListString, ",");
-                        }
-
-                        for (auto geomName : geomList)
-                        {
-                            for (size_t p = 0; p < _geometryList.size(); p++)
+                            // Find if geometry to assign exists and if so assign
+                            // material to it.
+                            mx::StringVec geomList;
+                            std::string geom = assignment->getGeom();
+                            if (geom.size())
                             {
-                                auto partition = _geometryList[p];
-                                const std::string& id = partition->getIdentifier();
-                                if (geomName == id)
+                                geomList.push_back(geom);
+                            }
+                            else
+                            {
+                                mx::CollectionPtr collection = assignment->getCollection();
+                                const std::string geomListString = collection->getIncludeGeom();
+                                geomList = mx::splitString(geomListString, ",");
+                            }
+
+                            for (auto geomName : geomList)
+                            {
+                                for (size_t p = 0; p < _geometryList.size(); p++)
                                 {
-                                    // Mimic what is done manually by choosing the geometry 
-                                    // and then choosing the material to assign to that geometry
-                                    setGeometrySelection(p);
-                                    setMaterialSelection(assigneMaterialIndex);
+                                    auto partition = _geometryList[p];
+                                    const std::string& id = partition->getIdentifier();
+                                    if (geomName == id)
+                                    {
+                                        // Mimic what is done manually by choosing the geometry 
+                                        // and then choosing the material to assign to that geometry
+                                        setGeometrySelection(p);
+                                        setMaterialSelection(assigneMaterialIndex);
+                                    }
                                 }
                             }
-                        }
 
+                        }
                     }
                 }
+                catch (std::exception& e)
+                {
+                    new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Look Assignment Error", e.what());
+                }
             }
-            catch (std::exception& e)
+            else
             {
-                new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Look Assignment Error", e.what());
+                _materialFilename = filename;
+                try
+                {
+                    if (_clearExistingMaterials)
+                    {
+                        initializeDocument(_stdLib);
+                        std::vector<MaterialPtr> newMaterials;
+                        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
+                        if (newMaterials.size())
+                        {
+                            importMaterials(materialDoc);
+                            _materials.insert(_materials.end(), newMaterials.begin(), newMaterials.end());
+                            updateMaterialSelections();
+                            setMaterialSelection(0);
+                            assignMaterial(newMaterials[0]);
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Add material append.
+                    }
+                }
+                catch (std::exception& e)
+                {
+                    new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
+                }
             }
         }
         mProcessEvents = true;
     });
 }
+
+void Viewer::createAdvancedSettings(Widget* parent)
+{
+    ng::PopupButton* advancedButton = new ng::PopupButton(parent, "Advanced Settings");
+    advancedButton->setIcon(ENTYPO_ICON_TOOLS);
+    advancedButton->setChevronIcon(-1);
+    ng::Popup* advancedPopup = advancedButton->popup();
+    advancedPopup->setLayout(new ng::GroupLayout());
+
+    new ng::Label(advancedPopup, "Mesh Options");
+
+    ng::CheckBox* splitUdimsBox = new ng::CheckBox(advancedPopup, "Split By UDIMs");
+    splitUdimsBox->setChecked(_splitByUdims);
+    splitUdimsBox->setCallback([this](bool enable)
+    {
+        _splitByUdims = enable;
+    });
+
+    new ng::Label(advancedPopup, "Material Options");
+
+    ng::CheckBox* assignLooksBox = new ng::CheckBox(advancedPopup, "Assign Looks");
+    assignLooksBox->setChecked(_assignLooks);
+    assignLooksBox->setCallback([this](bool enable)
+    {
+        _assignLooks = enable;
+    });
+
+    new ng::Label(advancedPopup, "Render Options");
+
+    mx::StringVec sampleOptions;
+    for (int i = MIN_ENV_SAMPLES; i <= MAX_ENV_SAMPLES; i *= 4)
+    {
+        mProcessEvents = false;
+        sampleOptions.push_back("Samples " + std::to_string(i));
+        mProcessEvents = true;
+    }
+    ng::ComboBox* sampleBox = new ng::ComboBox(advancedPopup, sampleOptions);
+    sampleBox->setChevronIcon(-1);
+    sampleBox->setSelectedIndex((int) std::log2(DEFAULT_ENV_SAMPLES / MIN_ENV_SAMPLES) / 2);
+    sampleBox->setCallback([this](int index)
+    {
+        _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
+    });
+
+
+    }
 
 void Viewer::updateGeometrySelections()
 {
