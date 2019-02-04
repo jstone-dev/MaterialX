@@ -40,10 +40,12 @@ class Material
         return std::make_shared<Material>();
     }
 
-    /// Load a new document containing renderable materials.
-    /// Returns a document and a list of loaded Materials.
-    static mx::DocumentPtr loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries,  std::vector<MaterialPtr>& materials, 
-                                        const DocumentModifiers& modifiers);
+    /// Load a document on disk containing renderable materials into an existing document
+    /// and create new materials if they do not already exist.
+    /// Returns the number of new materials added
+    static size_t loadDocument(mx::DocumentPtr destinationDoc, const mx::FilePath& filePath,
+                               mx::DocumentPtr libraries, const DocumentModifiers& modifiers,
+                               std::vector<MaterialPtr>& materials);
 
     /// Return the renderable element associated with this material
     mx::TypedElementPtr getElement() const
@@ -72,6 +74,9 @@ class Material
     /// Generate a shader from the given inputs.
     bool generateShader(const mx::FileSearchPath& searchPath);
 
+    /// Generate a constant color shader
+    bool generateConstantShader(const std::string& shaderName, const mx::Color4& color);
+
     /// Return the underlying OpenGL shader.
     GLShaderPtr getShader() const
     {
@@ -84,6 +89,9 @@ class Material
         return _hasTransparency;
     }
     
+    /// Bind shader
+    void bindShader(const mx::FileSearchPath& searchPath);
+
     /// Bind viewing information for this material.
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
 

@@ -99,15 +99,29 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     ng::Button* editorButton = new ng::Button(_window, "Property Editor");
     editorButton->setFlags(ng::Button::ToggleButton);
     editorButton->setChangeCallback([this](bool state)
-    { 
+    {
         _propertyEditor.setVisible(state);
         performLayout();
     });
 
+    // Create wire material first as advanced settings depends on if this shader exists
+    const std::string constantShaderName("__WIRE_SHADER_NAME__");
+    const mx::Color4 color{ 1.0f, 1.0f, 1.0f, 1.0f };
+    _wireMaterial = Material::create();
+    try
+    {
+        _wireMaterial->generateConstantShader(constantShaderName, color);
+    }
+    catch (std::exception& e)
+    {
+        _wireMaterial = nullptr;
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to generate wire shader", e.what());
+    }
+
     createAdvancedSettings(_window);
 
     _geomLabel = new ng::Label(_window, "Select Geometry");
-    _geometryListBox = new ng::ComboBox(_window, {"None"});
+    _geometryListBox = new ng::ComboBox(_window, { "None" });
     _geometryListBox->setChevronIcon(-1);
     _geometryListBox->setCallback([this](int choice)
     {
@@ -115,7 +129,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     });
 
     _materialLabel = new ng::Label(_window, "Assigned Material");
-    _materialSelectionBox = new ng::ComboBox(_window, {"None"});
+    _materialSelectionBox = new ng::ComboBox(_window, { "None" });
     _materialSelectionBox->setChevronIcon(-1);
     _materialSelectionBox->setCallback([this](int choice)
     {
@@ -134,7 +148,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _geometryHandler.addLoader(loader);
     _geometryHandler.loadGeometry(meshFilename);
     updateGeometrySelections();
-    
+
     // Initialize camera
     initCamera();
     setResizeCallback([this](ng::Vector2i size)
@@ -144,8 +158,7 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
 
     try
     {
-        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, modifiers);
-        importMaterials(materialDoc);            
+        Material::loadDocument(_doc, _materialFilename, _stdLib, _modifiers, _materials);
         updateMaterialSelections();
         setMaterialSelection(0);
         if (_materials.size())
@@ -174,13 +187,6 @@ void Viewer::initializeDocument(mx::DocumentPtr libraries)
     _materials.clear();
     _selectedMaterial = 0;
     _materialAssignments.clear();
-}
-
-void Viewer::importMaterials(mx::DocumentPtr materials)
-{
-    mx::CopyOptions copyOptions;
-    copyOptions.skipDuplicateElements = true;
-    _doc->importLibrary(materials, &copyOptions);
 }
 
 void Viewer::assignMaterial(MaterialPtr material, mx::MeshPartitionPtr geometry)
@@ -224,9 +230,13 @@ void Viewer::createLoadMeshInterface(Widget* parent, const std::string label)
             _geometryHandler.clearGeometry();
             if (_geometryHandler.loadGeometry(filename))
             {
-                if (_splitByUdims && !_geometryHandler.getMeshes().empty())
+                const mx::MeshList& meshes = _geometryHandler.getMeshes();
+                if (!meshes.empty())
                 {
-                    _geometryHandler.getMeshes()[0]->splitByUdims();
+                    if (_splitByUdims)
+                    {
+                        meshes[0]->splitByUdims();
+                    }
                 }
 
                 updateGeometrySelections();
@@ -282,7 +292,7 @@ void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string labe
                             for (size_t i = 0; i<_materials.size(); i++)
                             {
                                 MaterialPtr mat = _materials[i];
-                                ;                           mx::TypedElementPtr elem = mat->getElement();
+                                mx::TypedElementPtr elem = mat->getElement();
                                 mx::ShaderRefPtr shaderRef = elem->asA<mx::ShaderRef>();
                                 mx::MaterialPtr materialRef = shaderRef ? shaderRef->getParent()->asA<mx::Material>() : nullptr;
                                 if (materialRef)
@@ -348,28 +358,36 @@ void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string labe
                 _materialFilename = filename;
                 try
                 {
-                    if (_clearExistingMaterials)
+                    if (_clearMaterialsOnLoad)
                     {
                         initializeDocument(_stdLib);
-                        std::vector<MaterialPtr> newMaterials;
-                        mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, newMaterials, _modifiers);
-                        if (newMaterials.size())
-                        {
-                            importMaterials(materialDoc);
-                            _materials.insert(_materials.end(), newMaterials.begin(), newMaterials.end());
-                            updateMaterialSelections();
-                            setMaterialSelection(0);
-                            assignMaterial(newMaterials[0]);
-                        }
                     }
-                    else
+                    size_t newRenderables = Material::loadDocument(_doc, _materialFilename, _stdLib, _modifiers, _materials);
+                    if (newRenderables > 0)
                     {
-                        // TODO: Add material append.
+                        updateMaterialSelections();
+                        for (auto m : _materials)
+                        {
+                            m->generateShader(_searchPath);
+                            mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
+                            if (mesh)
+                            {
+                                m->bindMesh(mesh);
+                            }
+                        }
+                        if (_clearMaterialsOnLoad)
+                        {
+                            setMaterialSelection(0);
+                            if (!_materials.empty())
+                            {
+                                assignMaterial(_materials[0]);
+                            }
+                        }
                     }
                 }
                 catch (std::exception& e)
                 {
-                    new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Shader Generation Error", e.what());
+                    new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Material Assignment Error", e.what());
                 }
             }
         }
@@ -396,6 +414,13 @@ void Viewer::createAdvancedSettings(Widget* parent)
 
     new ng::Label(advancedPopup, "Material Options");
 
+    ng::CheckBox* clearMaterialsOnLoadBox = new ng::CheckBox(advancedPopup, "Clear Materials On Load");
+    clearMaterialsOnLoadBox->setChecked(_clearMaterialsOnLoad);
+    clearMaterialsOnLoadBox->setCallback([this](bool enable)
+    {
+        _clearMaterialsOnLoad = enable;
+    });    
+
     ng::CheckBox* assignLooksBox = new ng::CheckBox(advancedPopup, "Assign Looks");
     assignLooksBox->setChecked(_assignLooks);
     assignLooksBox->setCallback([this](bool enable)
@@ -420,6 +445,15 @@ void Viewer::createAdvancedSettings(Widget* parent)
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
     });
 
+    if (_wireMaterial)
+    {
+        ng::CheckBox* outlineSelectedGeometryBox = new ng::CheckBox(advancedPopup, "Outline Selected Geometry");
+        outlineSelectedGeometryBox->setChecked(_outlineSelectedGeometry);
+        outlineSelectedGeometryBox->setCallback([this](bool enable)
+        {
+            _outlineSelectedGeometry = enable;
+        });
+    }
 
     }
 
@@ -427,6 +461,16 @@ void Viewer::updateGeometrySelections()
 {
     _geometryList.clear();
     mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
+    if (!mesh)
+    {
+        return;
+    }
+
+    if (_wireMaterial)
+    {
+        _wireMaterial->bindMesh(mesh);
+    }
+
     for (size_t partIndex = 0; partIndex < mesh->getPartitionCount(); partIndex++)
     {
         mx::MeshPartitionPtr part = mesh->getPartition(partIndex);
@@ -558,13 +602,15 @@ bool Viewer::keyboardEvent(int key, int scancode, int action, int modifiers)
             if (!_materialFilename.isEmpty())
             {
                 initializeDocument(_stdLib);
-                mx::DocumentPtr materialDoc = Material::loadDocument(_materialFilename, _stdLib, _materials, _modifiers);
-                importMaterials(materialDoc);
-                updateMaterialSelections();
-                setMaterialSelection(0);
-                if (_materials.size())
+                size_t newRenderables = Material::loadDocument(_doc, _materialFilename, _stdLib, _modifiers, _materials);
+                if (newRenderables)
                 {
-                    assignMaterial(_materials[0]);
+                    updateMaterialSelections();
+                    setMaterialSelection(0);
+                    if (_materials.size())
+                    {
+                        assignMaterial(_materials[0]);
+                    }
                 }
             }
         }
@@ -633,18 +679,21 @@ void Viewer::drawContents()
     computeCameraMatrices(world, view, proj);
 
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_CULL_FACE);
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-    GLShaderPtr lastBoundShader;
+    mx::TypedElementPtr lastBoundShader;
     for (auto assignment : _materialAssignments)
     {
         mx::MeshPartitionPtr geom = assignment.first;
+
         MaterialPtr material = assignment.second;
-        GLShaderPtr shader = material->getShader();
+        mx::TypedElementPtr shader = material->getElement();
         if (shader && shader != lastBoundShader)
         {
-            shader->bind();
+            material->bindShader(_searchPath);
             lastBoundShader = shader;
             if (material->hasTransparency())
             {
@@ -664,6 +713,20 @@ void Viewer::drawContents()
 
     glDisable(GL_BLEND);
     glDisable(GL_FRAMEBUFFER_SRGB);
+
+    if (_outlineSelectedGeometry)
+    {
+        GLShaderPtr shader = _wireMaterial->getShader();
+        if (shader && (_selectedGeom < _geometryList.size()))
+        {
+            auto activeGeom = _geometryList[_selectedGeom];
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            shader->bind();
+            _wireMaterial->bindViewInformation(world, view, proj);
+            _wireMaterial->drawPartition(activeGeom);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+    }
 }
 
 bool Viewer::scrollEvent(const ng::Vector2i& p, const ng::Vector2f& rel)

@@ -75,8 +75,9 @@ bool stringEndsWith(const std::string& str, std::string const& end)
 //
 // Material methods
 //
-mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::DocumentPtr libraries, std::vector<MaterialPtr>& materials,
-                            const DocumentModifiers& modifiers)
+size_t Material::loadDocument(mx::DocumentPtr destinationDoc, const mx::FilePath& filePath, 
+                            mx::DocumentPtr libraries, const DocumentModifiers& modifiers,
+                            std::vector<MaterialPtr>& materials)
 {
     // Load the content document.
     mx::DocumentPtr doc = mx::createDocument();
@@ -133,8 +134,7 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
         }
     }
 
-   // Import the given libraries.
-    doc->setSourceUri(filePath);
+    // Import the given libraries.
     mx::CopyOptions copyOptions;
     copyOptions.skipDuplicateElements = true;
     doc->importLibrary(libraries, &copyOptions);
@@ -159,12 +159,36 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
         }
     }
 
-    // Generate materials
+
+    // Find new renderable elements
+    size_t previousMaterialCount = materials.size();
+    mx::StringVec renderablePaths;
     std::vector<mx::TypedElementPtr> elems;
     mx::findRenderableElements(doc, elems);
-    mx::ValuePtr udimSetValue = doc->getGeomAttrValue("udimset");
     for (mx::TypedElementPtr elem : elems)
     {
+        std::string namePath = elem->getNamePath();
+        // Skip adding if renderable already exists
+        if (!destinationDoc->getDescendant(namePath))
+        {
+            renderablePaths.push_back(namePath);
+        }
+    }
+
+    // Check for any udim set
+    mx::ValuePtr udimSetValue = doc->getGeomAttrValue("udimset");
+
+    // Merge the material document into the document passed in
+    destinationDoc->importLibrary(doc, &copyOptions);
+
+    // Create new materials
+    for (auto renderablePath : renderablePaths)
+    {
+        auto elem = destinationDoc->getDescendant(renderablePath)->asA<mx::TypedElement>();
+        if (!elem)
+        {
+            continue;
+        }
         if (udimSetValue && udimSetValue->isA<mx::StringVec>())
         {
             for (const std::string& udim : udimSetValue->asA<mx::StringVec>())
@@ -183,7 +207,41 @@ mx::DocumentPtr Material::loadDocument(const mx::FilePath& filePath, mx::Documen
         }
     }
 
-    return doc;
+    return (materials.size() - previousMaterialCount);
+}
+
+bool Material::generateConstantShader(const std::string& shaderName, const mx::Color4 &color)
+{
+    const std::string pixelShaderShaderTemplate = {
+        "#version 400\n " \
+        "out vec4 out1;\n" \
+        "void main()\n" \
+        "{\n" \
+        "    out1 = vec4(_r_, _g_, _b_, _a_);\n" \
+        "}\n" };
+    mx::StringMap map;
+    map["_r_"] = std::to_string(color[0]);
+    map["_g_"] = std::to_string(color[1]);
+    map["_b_"] = std::to_string(color[2]);
+    map["_a_"] = std::to_string(color[3]);
+    std::string pixelShader = mx::replaceSubstrings(pixelShaderShaderTemplate, map);
+
+    const std::string vertexShader = {
+        "#version 400\n" \
+        "uniform mat4 u_worldMatrix = mat4(1.0);\n" \
+        "uniform mat4 u_viewProjectionMatrix = mat4(1.0);\n" \
+        "in vec3 i_position;\n" \
+        "void main()\n" \
+        "{\n" \
+        "    vec4 hPositionWorld = u_worldMatrix * vec4(i_position, 1.0);\n" \
+        "    gl_Position = u_viewProjectionMatrix * hPositionWorld;\n" \
+        "}\n"};
+
+    _hwShader = nullptr;
+    _elem = nullptr;
+    _hasTransparency = false;
+    _glShader = std::make_shared<ng::GLShader>();
+    return _glShader->init(shaderName, vertexShader, pixelShader);
 }
 
 bool Material::generateShader(const mx::FileSearchPath& searchPath)
@@ -192,22 +250,36 @@ bool Material::generateShader(const mx::FileSearchPath& searchPath)
     {
         return false;
     }
-    _hwShader = generateSource(searchPath, _elem);
+    if (!_hwShader)
+    {
+        _hwShader = generateSource(searchPath, _elem);
+    }
     if (!_hwShader)
     {
         return false;
     }
-
-    std::string vertexShader = _hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
-    std::string pixelShader = _hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
-
-    _glShader = std::make_shared<ng::GLShader>();
-    _glShader->init(_elem->getNamePath(), vertexShader, pixelShader);
-
     _hasTransparency = _hwShader->hasTransparency();
 
+    if (!_glShader)
+    {
+        std::string vertexShader = _hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
+        std::string pixelShader = _hwShader->getSourceCode(mx::HwShader::PIXEL_STAGE);
+
+        _glShader = std::make_shared<ng::GLShader>();
+        _glShader->init(_elem->getNamePath(), vertexShader, pixelShader);
+    }
     return true;
 }
+
+void Material::bindShader(const mx::FileSearchPath& searchPath)
+{
+    generateShader(searchPath);
+    if (_glShader)
+    {
+        _glShader->bind();
+    }
+}
+
 
 void Material::bindMesh(const mx::MeshPtr mesh) const
 {

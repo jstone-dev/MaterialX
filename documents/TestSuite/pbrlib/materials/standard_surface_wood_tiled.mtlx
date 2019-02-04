@@ -12,9 +12,9 @@
     <output name="out_base_color" type="color3" nodename="image_base_color" />
     <output name="out_roughness" type="float" nodename="image_roughness" />
   </nodegraph>
-  
-  <material name="wood_1">
-    <shaderref name="example1_surface" node="standard_surface">
+
+  <material name="wood1_material">
+    <shaderref name="wood1__surface" node="standard_surface">
       <bindinput name="base" type="float" value="1" />
       <bindinput name="base_color" type="color3" nodegraph="nodegraph1" output="out_base_color" />
       <bindinput name="specular" type="float" value="0.5" />

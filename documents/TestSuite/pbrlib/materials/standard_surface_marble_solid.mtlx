@@ -5,7 +5,7 @@
     <dotproduct name="addxyz" type="float">
       <input name="in1" type="vector3" nodename="objpos" />
       <input name="in2" type="vector3" value="1, 1, 1" />
-    </dotproduct> 
+    </dotproduct>
     <multiply name="scalexyz" type="float">
       <input name="in1" type="float" nodename="addxyz" />
       <input name="in2" type="float" value="6.0" />
@@ -28,19 +28,19 @@
     </add>
     <sin name="sin" type="float">
       <input name="in" type="float" nodename="sum" />
-    </sin> 
+    </sin>
     <multiply name="scale" type="float">
       <input name="in1" type="float" nodename="sin" />
       <input name="in2" type="float" value="0.5" />
-    </multiply> 
+    </multiply>
     <add name="bias" type="float">
       <input name="in1" type="float" nodename="scale" />
       <input name="in2" type="float" value="0.5" />
-    </add> 
+    </add>
     <power name="power" type="float">
       <input name="in1" type="float" nodename="bias" />
       <input name="in2" type="float" value="3.0" />
-    </power> 
+    </power>
     <constant name="constant_1" type="color3">
       <parameter name="value" type="color3" value="0.8, 0.8, 0.8" />
     </constant>
@@ -55,8 +55,8 @@
     <output name="out" type="color3" nodename="mix1" />
   </nodegraph>
 
-  <material name="example1">
-    <shaderref name="example1_surface" node="standard_surface">
+  <material name="marble1_material">
+    <shaderref name="marble1_surface" node="standard_surface">
       <bindinput name="base" type="float" value="1" />
       <bindinput name="base_color" type="color3" nodegraph="nodegraph1" output="out" />
       <bindinput name="specular_color" type="color3" value="1, 1, 1" />

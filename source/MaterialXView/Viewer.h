@@ -57,7 +57,6 @@ class Viewer : public ng::Screen
 
   private:
     void initializeDocument(mx::DocumentPtr libraries);
-    void importMaterials(mx::DocumentPtr materials);
     void saveActiveMaterialSource();
 
     /// Assign the given material to a geometry, or to all geometries if no
@@ -109,11 +108,12 @@ class Viewer : public ng::Screen
 
     // List of available materials and UI
     std::vector<MaterialPtr> _materials;
+    MaterialPtr _wireMaterial;
     size_t _selectedMaterial;
     // UI:
     ng::Label* _materialLabel;
     ng::ComboBox* _materialSelectionBox;
-    bool _clearExistingMaterials = true;
+    bool _clearMaterialsOnLoad = true;
     // Property editor: Currently shows only selected material
     PropertyEditor _propertyEditor;
 
@@ -123,6 +123,7 @@ class Viewer : public ng::Screen
     // UI:
     ng::Label* _geomLabel;
     ng::ComboBox* _geometryListBox;
+    bool _outlineSelectedGeometry = false;
 
     // List of material assignments to geometry
     std::map<mx::MeshPartitionPtr, MaterialPtr> _materialAssignments;

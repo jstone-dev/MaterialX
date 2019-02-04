@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <materialx version="1.36" require="">
-  <material name="example1">
-    <shaderref name="example1_surface" node="standard_surface">
+  <material name="jade1_material">
+    <shaderref name="jade1_surface" node="standard_surface">
       <bindinput name="base" type="float" value="0.5" />
       <bindinput name="base_color" type="color3" value="0.0603, 0.43979999, 0.19159999" />
       <bindinput name="specular_roughness" type="float" value="0.25" />

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <materialx version="1.36" require="">
-  <material name="example1">
-    <shaderref name="example1_surface" node="standard_surface">
+  <material name="default1_material">
+    <shaderref name="default1_surface" node="standard_surface">
     </shaderref>
   </material>
 </materialx>
