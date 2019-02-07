@@ -17,7 +17,7 @@ int main(int argc, char* const argv[])
     std::string meshFilename = "documents/TestSuite/Geometry/teapot.obj";
     std::string materialFilename = "documents/TestSuite/pbrlib/materials/standard_surface_default.mtlx";
     DocumentModifiers modifiers;
-    int multiSampleCount = 4;
+    int multiSampleCount = 0;
 
     for (size_t i = 0; i < tokens.size(); i++)
     {
