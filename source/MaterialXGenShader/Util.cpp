@@ -114,7 +114,7 @@ void getFilesInDirectory(const std::string& directory, StringVec& files, const s
 
 bool readFile(const string& filename, string& contents)
 {
-    std::ifstream file(filename, std::ios::in);
+    std::ifstream file(filename, std::ios::in | std::ios::binary);
     if (file)
     {
         std::stringstream stream;
@@ -282,6 +282,8 @@ namespace
                     // Second check the opacity
                     if (opaque)
                     {
+                        opaque = false;
+
                         InputPtr opacity = node->getInput("opacity");
                         if (!opacity)
                         {
@@ -390,6 +392,8 @@ bool isTransparentSurface(ElementPtr element, const ShaderGenerator& shadergen)
             // Second check the opacity
             if (opaque)
             {
+                opaque = false;
+
                 BindInputPtr opacity = shaderRef->getBindInput("opacity");
                 if (!opacity)
                 {
