@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <materialx version="1.36">
-  <nodegraph name="nodegraph1" colorspace="srgb_texture">
+  <nodegraph name="NG_brass1" colorspace="srgb_texture">
     <tiledimage name="image_color" type="color3">
       <parameter name="file" type="filename" value="documents/TestSuite/Images/brass_color.jpg" />
       <parameter name="uvtiling" type="vector2" value="1.0, 1.0"/>
@@ -13,15 +13,15 @@
     <output name="out_roughness" type="float" nodename="image_roughness" />
   </nodegraph>
 
-  <material name="brass1_material">
-    <shaderref name="brass1_surface" node="standard_surface">
+  <material name="M_brass1">
+    <shaderref name="SR_brass1" node="standard_surface">
       <bindinput name="base" type="float" value="1" />
       <bindinput name="specular" type="float" value="0" />
-      <bindinput name="specular_roughness" nodegraph="nodegraph1" output="out_roughness" />
+      <bindinput name="specular_roughness" nodegraph="NG_brass1" output="out_roughness" />
       <bindinput name="metalness" type="float" value="1" />
       <bindinput name="coat" type="float" value="1" />
-      <bindinput name="coat_color" type="color3" nodegraph="nodegraph1" output="out_color" />
-      <bindinput name="coat_roughness" nodegraph="nodegraph1" output="out_roughness" />
+      <bindinput name="coat_color" type="color3" nodegraph="NG_brass1" output="out_color" />
+      <bindinput name="coat_roughness" nodegraph="NG_brass1" output="out_roughness" />
     </shaderref>
   </material>
 </materialx>

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <materialx version="1.36" require="">
-  <nodegraph name="nodegraph1">
+  <nodegraph name="NG_marble1">
     <position name="objpos" type="vector3" />
     <dotproduct name="addxyz" type="float">
       <input name="in1" type="vector3" nodename="objpos" />
@@ -55,10 +55,10 @@
     <output name="out" type="color3" nodename="mix1" />
   </nodegraph>
 
-  <material name="marble1_material">
-    <shaderref name="marble1_surface" node="standard_surface">
+  <material name="M_marble1">
+    <shaderref name="SR_marble1" node="standard_surface">
       <bindinput name="base" type="float" value="1" />
-      <bindinput name="base_color" type="color3" nodegraph="nodegraph1" output="out" />
+      <bindinput name="base_color" type="color3" nodegraph="NG_marble1" output="out" />
       <bindinput name="specular_color" type="color3" value="1, 1, 1" />
       <bindinput name="specular_roughness" type="float" value="0.1" />
     </shaderref>

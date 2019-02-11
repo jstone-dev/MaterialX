@@ -106,26 +106,21 @@ class Viewer : public ng::Screen
     mx::FilePath _materialFilename;
     DocumentModifiers _modifiers;
 
-    // List of available materials and UI
+    // Geometry selections
+    std::vector<mx::MeshPartitionPtr> _geometryList;
+    size_t _selectedGeom;
+    ng::Label* _geomLabel;
+    ng::ComboBox* _geometryListBox;
+
+    // Material selections
     std::vector<MaterialPtr> _materials;
     MaterialPtr _wireMaterial;
     size_t _selectedMaterial;
-    // UI:
     ng::Label* _materialLabel;
     ng::ComboBox* _materialSelectionBox;
-    bool _clearMaterialsOnLoad = true;
-    // Property editor: Currently shows only selected material
     PropertyEditor _propertyEditor;
 
-    // List of available geometries and UI
-    std::vector<mx::MeshPartitionPtr> _geometryList;
-    size_t _selectedGeom;
-    // UI:
-    ng::Label* _geomLabel;
-    ng::ComboBox* _geometryListBox;
-    bool _outlineSelectedGeometry = false;
-
-    // List of material assignments to geometry
+    // Material assignments
     std::map<mx::MeshPartitionPtr, MaterialPtr> _materialAssignments;
 
     // Resource handlers
@@ -136,9 +131,11 @@ class Viewer : public ng::Screen
     bool _splitByUdims;
 
     // Material options
+    bool _mergeMaterials;
     bool _assignLooks;
 
     // Render options
+    bool _outlineSelection;
     int _envSamples;
 };
 

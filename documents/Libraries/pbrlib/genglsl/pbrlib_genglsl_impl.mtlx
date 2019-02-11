@@ -19,6 +19,9 @@
   <!-- <generalizedschlickbrdf> -->
   <implementation name="IM_generalizedschlickbrdf_genglsl" nodedef="ND_generalizedschlickbrdf" file="pbrlib/genglsl/mx_generalizedschlickbrdf.glsl" function="mx_generalizedschlickbrdf" language="genglsl"/>
 
+  <!-- <burleydiffusebrdf> -->
+  <implementation name="IM_burleydiffusebrdf_genglsl" nodedef="ND_burleydiffusebrdf" file="pbrlib/genglsl/mx_burleydiffusebrdf.glsl" function="mx_burleydiffusebrdf" language="genglsl"/>
+
   <!-- <subsurfacebrdf> -->
   <implementation name="IM_subsurfacebrdf_genglsl" nodedef="ND_subsurfacebrdf" file="pbrlib/genglsl/mx_subsurfacebrdf.glsl" function="mx_subsurfacebrdf" language="genglsl"/>
 

@@ -85,8 +85,11 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _materialFilename(materialFilename),
     _modifiers(modifiers),
     _selectedGeom(0),
+    _selectedMaterial(0),
     _splitByUdims(false),
+    _mergeMaterials(false),
     _assignLooks(false),
+    _outlineSelection(false),
     _envSamples(DEFAULT_ENV_SAMPLES)
 {
     _window = new ng::Window(this, "Viewer Options");
@@ -358,7 +361,7 @@ void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string labe
                 _materialFilename = filename;
                 try
                 {
-                    if (_clearMaterialsOnLoad)
+                    if (!_mergeMaterials)
                     {
                         initializeDocument(_stdLib);
                     }
@@ -375,7 +378,7 @@ void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string labe
                                 m->bindMesh(mesh);
                             }
                         }
-                        if (_clearMaterialsOnLoad)
+                        if (!_mergeMaterials)
                         {
                             setMaterialSelection(0);
                             if (!_materials.empty())
@@ -414,11 +417,11 @@ void Viewer::createAdvancedSettings(Widget* parent)
 
     new ng::Label(advancedPopup, "Material Options");
 
-    ng::CheckBox* clearMaterialsOnLoadBox = new ng::CheckBox(advancedPopup, "Clear Materials On Load");
-    clearMaterialsOnLoadBox->setChecked(_clearMaterialsOnLoad);
-    clearMaterialsOnLoadBox->setCallback([this](bool enable)
+    ng::CheckBox* mergeMaterialsBox = new ng::CheckBox(advancedPopup, "Merge Materials");
+    mergeMaterialsBox->setChecked(_mergeMaterials);
+    mergeMaterialsBox->setCallback([this](bool enable)
     {
-        _clearMaterialsOnLoad = enable;
+        _mergeMaterials = enable;
     });    
 
     ng::CheckBox* assignLooksBox = new ng::CheckBox(advancedPopup, "Assign Looks");
@@ -430,32 +433,34 @@ void Viewer::createAdvancedSettings(Widget* parent)
 
     new ng::Label(advancedPopup, "Render Options");
 
+    if (_wireMaterial)
+    {
+        ng::CheckBox* outlineSelectedGeometryBox = new ng::CheckBox(advancedPopup, "Outline Selected Geometry");
+        outlineSelectedGeometryBox->setChecked(_outlineSelection);
+        outlineSelectedGeometryBox->setCallback([this](bool enable)
+        {
+            _outlineSelection = enable;
+        });
+    }
+
+    Widget* sampleGroup = new Widget(advancedPopup);
+    sampleGroup->setLayout(new ng::BoxLayout(ng::Orientation::Horizontal));
+    new ng::Label(sampleGroup, "Environment Samples:");
     mx::StringVec sampleOptions;
     for (int i = MIN_ENV_SAMPLES; i <= MAX_ENV_SAMPLES; i *= 4)
     {
         mProcessEvents = false;
-        sampleOptions.push_back("Samples " + std::to_string(i));
+        sampleOptions.push_back(std::to_string(i));
         mProcessEvents = true;
     }
-    ng::ComboBox* sampleBox = new ng::ComboBox(advancedPopup, sampleOptions);
+    ng::ComboBox* sampleBox = new ng::ComboBox(sampleGroup, sampleOptions);
     sampleBox->setChevronIcon(-1);
     sampleBox->setSelectedIndex((int) std::log2(DEFAULT_ENV_SAMPLES / MIN_ENV_SAMPLES) / 2);
     sampleBox->setCallback([this](int index)
     {
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
     });
-
-    if (_wireMaterial)
-    {
-        ng::CheckBox* outlineSelectedGeometryBox = new ng::CheckBox(advancedPopup, "Outline Selected Geometry");
-        outlineSelectedGeometryBox->setChecked(_outlineSelectedGeometry);
-        outlineSelectedGeometryBox->setCallback([this](bool enable)
-        {
-            _outlineSelectedGeometry = enable;
-        });
-    }
-
-    }
+}
 
 void Viewer::updateGeometrySelections()
 {
@@ -688,25 +693,21 @@ void Viewer::drawContents()
     for (auto assignment : _materialAssignments)
     {
         mx::MeshPartitionPtr geom = assignment.first;
-
         MaterialPtr material = assignment.second;
         mx::TypedElementPtr shader = material->getElement();
-        if (shader && shader != lastBoundShader)
+
+        material->bindShader(_searchPath);
+        if (material->hasTransparency())
         {
-            material->bindShader(_searchPath);
-            lastBoundShader = shader;
-            if (material->hasTransparency())
-            {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            }
-            else
-            {
-                glDisable(GL_BLEND);
-            }
-            material->bindViewInformation(world, view, proj);
-            material->bindLights(_imageHandler, _searchPath, _envSamples);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
+        else
+        {
+            glDisable(GL_BLEND);
+        }
+        material->bindViewInformation(world, view, proj);
+        material->bindLights(_imageHandler, _searchPath, _envSamples);
         material->bindImages(_imageHandler, _searchPath, material->getUdim());
         material->drawPartition(geom);
     }
@@ -714,7 +715,7 @@ void Viewer::drawContents()
     glDisable(GL_BLEND);
     glDisable(GL_FRAMEBUFFER_SRGB);
 
-    if (_outlineSelectedGeometry)
+    if (_outlineSelection)
     {
         GLShaderPtr shader = _wireMaterial->getShader();
         if (shader && (_selectedGeom < _geometryList.size()))

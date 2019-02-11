@@ -1,5 +1,7 @@
 #include <MaterialXRender/Handlers/Mesh.h>
 
+#include <map>
+
 namespace MaterialX
 {
 const string MeshStream::POSITION_ATTRIBUTE("position");
@@ -156,7 +158,7 @@ void Mesh::splitByUdims()
         return;
     }
 
-    using UdimMap = std::unordered_map<uint32_t, MeshPartitionPtr>;
+    using UdimMap = std::map<uint32_t, MeshPartitionPtr>;
     UdimMap udimMap;
     for (size_t p = 0; p < getPartitionCount(); p++)
     {
