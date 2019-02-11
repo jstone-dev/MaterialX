@@ -7,8 +7,10 @@
 #include <MaterialXFormat/XmlIo.h>
 #include <MaterialXFormat/File.h>
 
-#include <MaterialXRender/OpenGL/GLTextureHandler.h>
+#include <MaterialXGenGlsl/GlslShaderGenerator.h>
 #include <MaterialXGenShader/HwShader.h>
+#include <MaterialXRender/Handlers/HwLightHandler.h>
+#include <MaterialXRender/OpenGL/GLTextureHandler.h>
 
 #include <nanogui/common.h>
 #include <nanogui/glutil.h>
@@ -71,8 +73,11 @@ class Material
         _udim = val;
     }
 
+    /// Generate shader source for a given element and shader generator
+    mx::HwShaderPtr generateSource(mx::ShaderGeneratorPtr shaderGenerator, mx::ElementPtr elem);
+
     /// Generate a shader from the given inputs.
-    bool generateShader(const mx::FileSearchPath& searchPath);
+    bool generateShader(mx::ShaderGeneratorPtr shaderGenerator);
 
     /// Generate a constant color shader
     bool generateConstantShader(const std::string& shaderName, const mx::Color4& color);
@@ -90,7 +95,7 @@ class Material
     }
     
     /// Bind shader
-    void bindShader(const mx::FileSearchPath& searchPath);
+    void bindShader(mx::ShaderGeneratorPtr shaderGenerator);
 
     /// Bind viewing information for this material.
     void bindViewInformation(const mx::Matrix44& world, const mx::Matrix44& view, const mx::Matrix44& proj);
@@ -100,10 +105,11 @@ class Material
 
     /// Bind a single image.
     bool bindImage(std::string filename, const std::string& uniformName, mx::GLTextureHandlerPtr imageHandler,
-        mx::ImageDesc& desc, const std::string& udim = mx::EMPTY_STRING);
+                   mx::ImageDesc& desc, const std::string& udim = mx::EMPTY_STRING, std::array<float, 4>* fallbackColor = nullptr);
 
     /// Bind lights to shader.
-    void bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, int envSamples);
+    void bindLights(mx::HwLightHandlerPtr lightHandler, mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, 
+                    int envSamples, bool directLighting, bool indirectLighting);
 
     /// Bind the given mesh to this material.
     void bindMesh(mx::MeshPtr mesh) const;
@@ -121,14 +127,13 @@ class Material
     mx::Shader::Variable* findUniform(const std::string& path) const;
 
   protected:
+    void bindUniform(const std::string& name, const mx::Value& value);
+
     GLShaderPtr _glShader;
     mx::HwShaderPtr _hwShader;
     mx::TypedElementPtr _elem;
     std::string _udim;
     bool _hasTransparency;
 };
-
-mx::DocumentPtr loadLibraries(const mx::StringVec& libraryNames, const mx::FileSearchPath& searchPath);
-mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem);
 
 #endif // MATERIALXVIEW_MATERIAL_H

@@ -1,5 +1,7 @@
 #include <MaterialXView/Viewer.h>
 
+#include <MaterialXGenShader/DefaultColorManagementSystem.h>
+
 #include <MaterialXRender/Handlers/stbImageLoader.h>
 #include <MaterialXRender/Handlers/TinyObjLoader.h>
 #include <MaterialXGenShader/Util.h>
@@ -55,6 +57,42 @@ void writeTextFile(const std::string& text, const std::string& filePath)
     file.close();
 }
 
+mx::DocumentPtr loadLibraries(const mx::StringVec& libraryFolders, const mx::FileSearchPath& searchPath)
+{
+    mx::DocumentPtr doc = mx::createDocument();
+    for (const std::string& libraryFolder : libraryFolders)
+    {
+        mx::FilePath path = searchPath.find(libraryFolder);
+        mx::StringVec filenames;
+        mx::getFilesInDirectory(path.asString(), filenames, "mtlx");
+
+        for (const std::string& filename : filenames)
+        {
+            mx::FilePath file = path / filename;
+            mx::DocumentPtr libDoc = mx::createDocument();
+            mx::readFromXmlFile(libDoc, file);
+            libDoc->setSourceUri(file);
+            mx::CopyOptions copyOptions;
+            copyOptions.skipDuplicateElements = true;
+            doc->importLibrary(libDoc, &copyOptions);
+        }
+    }
+    return doc;
+}
+
+void findLightShaders(mx::DocumentPtr doc, std::vector<mx::NodePtr>& lights)
+{
+    static const std::string LIGHT_SHADER = "lightshader";
+    lights.clear();
+    for (mx::NodePtr node : doc->getNodes())
+    {
+        if (node->getNodeDef() && (node->getType() == LIGHT_SHADER))
+        {
+            lights.push_back(node);
+        }
+    }
+}
+
 } // anonymous namespace
 
 //
@@ -84,6 +122,8 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     _searchPath(searchPath),
     _materialFilename(materialFilename),
     _modifiers(modifiers),
+    _directLighting(true),
+    _indirectLighting(true),
     _selectedGeom(0),
     _selectedMaterial(0),
     _splitByUdims(false),
@@ -140,7 +180,12 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
         assignMaterial(_materials[_selectedMaterial], _geometryList[_selectedGeom]);
     });
 
-    // Load in standard library and create top level document
+    // Set default light information before initialization
+    _lightFileName = "/documents/TestSuite/Utilities/Lights/default_viewer_lights.mtlx";
+    _envRadiancePath = "/documents/TestSuite/Images/san_giuseppe_bridge.hdr";
+    _envIrradiancePath = "/documents/TestSuite/Images/san_giuseppe_bridge_diffuse.hdr";
+
+    // Load in standard library and light handler and create top level document
     _stdLib = loadLibraries(_libraryFolders, _searchPath);
     initializeDocument(_stdLib);
 
@@ -179,12 +224,88 @@ Viewer::Viewer(const mx::StringVec& libraryFolders,
     performLayout();
 }
 
+void Viewer::setupLights(mx::HwLightHandlerPtr lightHandler, mx::ShaderGeneratorPtr shaderGenerator,
+                         std::vector<mx::NodePtr> lights, const std::string& envRadiancePath, const std::string& envIrradiancePath)
+{
+    try 
+    {
+        // Set directional lights on the generator
+        lightHandler->setLightSources(lights);
+
+        mx::HwShaderGenerator& hwShaderGenerator = static_cast<mx::HwShaderGenerator&>(*shaderGenerator);
+
+        // Find light types (node definitions) and generate ids.
+        std::unordered_map<std::string, unsigned int> ids;
+        mx::mapNodeDefToIdentiers(lightHandler->getLightSources(), ids);
+
+        // Register types and ids with the generator
+        std::unordered_map<std::string, unsigned int> identifiers;
+        mx::mapNodeDefToIdentiers(lights, identifiers);
+        mx::GenOptions options;
+        for (auto id : identifiers)
+        {
+            mx::NodeDefPtr nodeDef = _doc->getNodeDef(id.first);
+            if (nodeDef)
+            {
+                hwShaderGenerator.bindLightShader(*nodeDef, id.second, options);
+            }
+        }  
+        unsigned int lightSourceCount = (unsigned int)lightHandler->getLightSources().size();
+        hwShaderGenerator.setMaxActiveLightSources(lightSourceCount);
+
+        // Set up IBL inputs
+        lightHandler->setLightEnvRadiancePath(envRadiancePath);
+        lightHandler->setLightEnvIrradiancePath(envIrradiancePath);
+    }
+    catch (std::exception& e)
+    {
+        new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Failed to set up lighting", e.what());
+    }
+}
+
 void Viewer::initializeDocument(mx::DocumentPtr libraries)
 {
     _doc = mx::createDocument();
     mx::CopyOptions copyOptions;
     copyOptions.skipDuplicateElements = true;
     _doc->importLibrary(libraries, &copyOptions);
+
+    // Create common shader generator
+    _shaderGenerator = mx::GlslShaderGenerator::create();
+
+    // Add color management to generator
+    mx::DefaultColorManagementSystemPtr cms = mx::DefaultColorManagementSystem::create(_shaderGenerator->getLanguage());
+    cms->loadLibrary(_doc);
+    for (size_t i = 0; i < _searchPath.size(); i++)
+    {
+        // TODO: The registerSourceCodeSearchPath method should probably take a
+        //       full FileSearchPath rather than a single FilePath.
+        _shaderGenerator->registerSourceCodeSearchPath(_searchPath[i]);
+    }
+    _shaderGenerator->setColorManagementSystem(cms);
+
+    // Add lighting to generator
+    _lightHandler = mx::HwLightHandler::create();
+    std::vector<mx::NodePtr> lights;
+    mx::DocumentPtr lightDoc = mx::createDocument();
+    mx::FilePath path = _searchPath.find(_lightFileName);
+    if (!path.isEmpty())
+    {
+        try
+        {
+            mx::readFromXmlFile(lightDoc, path.asString());
+            lightDoc->setSourceUri(path);
+            _doc->importLibrary(lightDoc, &copyOptions);
+
+            findLightShaders(_doc, lights);
+            lightDoc->importLibrary(libraries, &copyOptions);
+        }
+        catch (std::exception& e)
+        {
+            new ng::MessageDialog(this, ng::MessageDialog::Type::Warning, "Cannot load light library file: " + path.asString(), e.what());
+        }
+    }
+    setupLights(_lightHandler, _shaderGenerator, lights, _envRadiancePath, _envIrradiancePath);
 
     // Clear state
     _materials.clear();
@@ -371,7 +492,7 @@ void Viewer::createLoadMaterialsInterface(Widget* parent, const std::string labe
                         updateMaterialSelections();
                         for (auto m : _materials)
                         {
-                            m->generateShader(_searchPath);
+                            m->generateShader(_shaderGenerator);
                             mx::MeshPtr mesh = _geometryHandler.getMeshes()[0];
                             if (mesh)
                             {
@@ -459,6 +580,20 @@ void Viewer::createAdvancedSettings(Widget* parent)
     sampleBox->setCallback([this](int index)
     {
         _envSamples = MIN_ENV_SAMPLES * (int) std::pow(4, index);
+    });
+
+    ng::CheckBox* directLightingBox = new ng::CheckBox(advancedPopup, "Direct lighting");
+    directLightingBox->setChecked(_directLighting);
+    directLightingBox->setCallback([this](bool enable)
+    {
+        _directLighting = enable;
+    });
+
+    ng::CheckBox* indirectLightingBox = new ng::CheckBox(advancedPopup, "Indirect lighting");
+    indirectLightingBox->setChecked(_indirectLighting);
+    indirectLightingBox->setCallback([this](bool enable)
+    {
+        _indirectLighting = enable;
     });
 }
 
@@ -554,7 +689,7 @@ MaterialPtr Viewer::setMaterialSelection(size_t index)
 
     // Update shader if needed
     MaterialPtr material = _materials[index];
-    if (material->generateShader(_searchPath))
+    if (material->generateShader(_shaderGenerator))
     {
         // Record assignment
         if (!_geometryList.empty())
@@ -577,7 +712,7 @@ void Viewer::saveActiveMaterialSource()
         mx::TypedElementPtr elem = material ? material->getElement() : nullptr;
         if (elem)
         {
-            mx::HwShaderPtr hwShader = generateSource(_searchPath, elem);
+            mx::HwShaderPtr hwShader = material->generateSource(_shaderGenerator, elem);
             if (hwShader)
             {
                 std::string vertexShader = hwShader->getSourceCode(mx::HwShader::VERTEX_STAGE);
@@ -696,7 +831,7 @@ void Viewer::drawContents()
         MaterialPtr material = assignment.second;
         mx::TypedElementPtr shader = material->getElement();
 
-        material->bindShader(_searchPath);
+        material->bindShader(_shaderGenerator);
         if (material->hasTransparency())
         {
             glEnable(GL_BLEND);
@@ -707,7 +842,7 @@ void Viewer::drawContents()
             glDisable(GL_BLEND);
         }
         material->bindViewInformation(world, view, proj);
-        material->bindLights(_imageHandler, _searchPath, _envSamples);
+        material->bindLights(_lightHandler, _imageHandler, _searchPath, _envSamples, _directLighting, _indirectLighting);
         material->bindImages(_imageHandler, _searchPath, material->getUdim());
         material->drawPartition(geom);
     }

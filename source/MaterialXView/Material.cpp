@@ -1,7 +1,5 @@
 #include <MaterialXView/Material.h>
 
-#include <MaterialXGenGlsl/GlslShaderGenerator.h>
-#include <MaterialXGenShader/DefaultColorManagementSystem.h>
 #include <MaterialXGenShader/HwShader.h>
 #include <MaterialXGenShader/Util.h>
 
@@ -9,56 +7,6 @@
 
 using MatrixXfProxy = Eigen::Map<const ng::MatrixXf>;
 using MatrixXuProxy = Eigen::Map<const ng::MatrixXu>;
-
-mx::DocumentPtr loadLibraries(const mx::StringVec& libraryFolders, const mx::FileSearchPath& searchPath)
-{
-    mx::DocumentPtr doc = mx::createDocument();
-    for (const std::string& libraryFolder : libraryFolders)
-    {
-        mx::FilePath path = searchPath.find(libraryFolder);
-        mx::StringVec filenames;
-        mx::getFilesInDirectory(path.asString(), filenames, "mtlx");
-
-        for (const std::string& filename : filenames)
-        {
-            mx::FilePath file = path / filename;
-            mx::DocumentPtr libDoc = mx::createDocument();
-            mx::readFromXmlFile(libDoc, file);
-            libDoc->setSourceUri(file);
-            mx::CopyOptions copyOptions;
-            copyOptions.skipDuplicateElements = true;
-            doc->importLibrary(libDoc, &copyOptions);
-        }
-    }
-    return doc;
-}
-
-mx::HwShaderPtr generateSource(const mx::FileSearchPath& searchPath, mx::ElementPtr elem)
-{  
-    if (!elem)
-    {
-        return nullptr;
-    }
-
-    mx::ShaderGeneratorPtr shaderGenerator = mx::GlslShaderGenerator::create();
-    mx::DefaultColorManagementSystemPtr cms = mx::DefaultColorManagementSystem::create(shaderGenerator->getLanguage());
-    cms->loadLibrary(elem->getDocument());
-    for (size_t i = 0; i < searchPath.size(); i++)
-    {
-        // TODO: The registerSourceCodeSearchPath method should probably take a
-        //       full FileSearchPath rather than a single FilePath.
-        shaderGenerator->registerSourceCodeSearchPath(searchPath[i]);
-    }
-    shaderGenerator->setColorManagementSystem(cms);
-
-    mx::GenOptions options;
-    options.hwSpecularEnvironmentMethod = mx::SPECULAR_ENVIRONMENT_FIS;
-    options.hwTransparency = isTransparentSurface(elem, *shaderGenerator);
-    options.targetColorSpaceOverride = "lin_rec709";
-    mx::ShaderPtr sgShader = shaderGenerator->generate("Shader", elem, options);
-
-    return std::dynamic_pointer_cast<mx::HwShader>(sgShader);
-}
 
 bool stringEndsWith(const std::string& str, std::string const& end)
 {
@@ -244,7 +192,23 @@ bool Material::generateConstantShader(const std::string& shaderName, const mx::C
     return _glShader->init(shaderName, vertexShader, pixelShader);
 }
 
-bool Material::generateShader(const mx::FileSearchPath& searchPath)
+mx::HwShaderPtr Material::generateSource(mx::ShaderGeneratorPtr shaderGenerator, mx::ElementPtr elem)
+{
+    if (!elem)
+    {
+        return nullptr;
+    }
+
+    mx::GenOptions options;
+    options.hwSpecularEnvironmentMethod = mx::SPECULAR_ENVIRONMENT_FIS;
+    options.hwTransparency = isTransparentSurface(elem, *shaderGenerator);
+    options.targetColorSpaceOverride = "lin_rec709";
+    mx::ShaderPtr sgShader = shaderGenerator->generate("Shader", elem, options);
+
+    return std::dynamic_pointer_cast<mx::HwShader>(sgShader);
+}
+
+bool Material::generateShader(mx::ShaderGeneratorPtr shaderGenerator)
 {
     if (!_elem)
     {
@@ -252,7 +216,7 @@ bool Material::generateShader(const mx::FileSearchPath& searchPath)
     }
     if (!_hwShader)
     {
-        _hwShader = generateSource(searchPath, _elem);
+        _hwShader = generateSource(shaderGenerator, _elem);
     }
     if (!_hwShader)
     {
@@ -271,9 +235,9 @@ bool Material::generateShader(const mx::FileSearchPath& searchPath)
     return true;
 }
 
-void Material::bindShader(const mx::FileSearchPath& searchPath)
+void Material::bindShader(mx::ShaderGeneratorPtr shaderGenerator)
 {
-    generateShader(searchPath);
+    generateShader(shaderGenerator);
     if (_glShader)
     {
         _glShader->bind();
@@ -381,12 +345,12 @@ void Material::bindImages(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
         }
 
         mx::ImageDesc desc;
-        bindImage(filename, uniformName, imageHandler, desc, udim);
+        bindImage(filename, uniformName, imageHandler, desc, udim, nullptr);
     }
 }
 
 bool Material::bindImage(std::string filename, const std::string& uniformName, mx::GLTextureHandlerPtr imageHandler,
-    mx::ImageDesc& desc, const std::string& udim)
+                         mx::ImageDesc& desc, const std::string& udim, std::array<float, 4> *fallbackColor)
 {
     if (!_glShader)
     {
@@ -402,7 +366,7 @@ bool Material::bindImage(std::string filename, const std::string& uniformName, m
     }
 
     // Acquire the given image.
-    if (!imageHandler->acquireImage(filename, desc, true, nullptr))
+    if (!imageHandler->acquireImage(filename, desc, true, fallbackColor))
     {
         std::cerr << "Failed to load image: " << filename << std::endl;
         return false;
@@ -416,22 +380,106 @@ bool Material::bindImage(std::string filename, const std::string& uniformName, m
     return true;
 }
 
-void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSearchPath& imagePath, int envSamples)
+void Material::bindUniform(const std::string& name, const mx::Value& value)
+{
+    if (value.getValueString().empty())
+        return;
+
+    if (value.getTypeString() == "float")
+    {
+        float v = value.asA<float>();
+        _glShader->setUniform(name, v);
+    }
+    else if (value.getTypeString() == "integer")
+    {
+        int v = value.asA<int>();
+        _glShader->setUniform(name, v);
+    }
+    else if (value.getTypeString() == "boolean")
+    {
+        bool v = value.asA<bool>();
+        _glShader->setUniform(name, v);
+    }
+    else if (value.getTypeString() == "color2")
+    {
+        mx::Color2 v = value.asA<mx::Color2>();
+        ng::Vector2f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        _glShader->setUniform(name, ngv);
+    }
+    else if (value.getTypeString() == "color3")
+    {
+        mx::Color3 v = value.asA<mx::Color3>();
+        ng::Vector3f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        ngv[2] = v[2];
+        _glShader->setUniform(name, ngv);
+    }
+    else if (value.getTypeString() == "color4")
+    {
+        mx::Color4 v = value.asA<mx::Color4>();
+        ng::Vector4f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        ngv[2] = v[2];
+        _glShader->setUniform(name, ngv);
+    }
+    else if (value.getTypeString() == "vector2")
+    {
+        mx::Vector2 v = value.asA<mx::Vector2>();
+        ng::Vector2f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        _glShader->setUniform(name, ngv);
+    }
+    else if (value.getTypeString() == "vector3")
+    {
+        mx::Vector3 v = value.asA<mx::Vector3>();
+        ng::Vector3f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        ngv[2] = v[2];
+        _glShader->setUniform(name, ngv);
+    }
+    else if (value.getTypeString() == "vector4")
+    {
+        mx::Vector4 v = value.asA<mx::Vector4>();
+        ng::Vector4f ngv;
+        ngv[0] = v[0];
+        ngv[1] = v[1];
+        ngv[2] = v[2];
+        ngv[3] = v[3];
+        _glShader->setUniform(name, ngv);
+    }
+}
+
+void Material::bindLights(mx::HwLightHandlerPtr lightHandler, mx::GLTextureHandlerPtr imageHandler, 
+                          const mx::FileSearchPath& imagePath, int envSamples, bool directLighting, 
+                          bool indirectLighting)
 {
     if (!_glShader)
     {
         return;
     }
 
+    _glShader->bind();
+
     // Bind light properties.
     if (_glShader->uniform("u_envSamples", false) != -1)
     {
         _glShader->setUniform("u_envSamples", envSamples);
     }
+    const std::string empty;
     mx::StringMap lightTextures = {
-        { "u_envRadiance", "documents/TestSuite/Images/san_giuseppe_bridge.hdr" },
-        { "u_envIrradiance", "documents/TestSuite/Images/san_giuseppe_bridge_diffuse.hdr" }
+        { "u_envRadiance", indirectLighting ? lightHandler->getLightEnvRadiancePath() : empty },
+        { "u_envIrradiance", indirectLighting ? lightHandler->getLightEnvIrradiancePath() : empty }
     };
+
+    // On failure to load, use a black texture
+    const std::string udim;
+    std::array<float, 4> fallbackColor = { 0.0, 0.0, 0.0, 1.0 };
     for (auto pair : lightTextures)
     {
         if (_glShader->uniform(pair.first, false) != -1)
@@ -441,7 +489,7 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
             const std::string filename = path.asString();
 
             mx::ImageDesc desc;
-            if (bindImage(filename, pair.first, imageHandler, desc))
+            if (bindImage(filename, pair.first, imageHandler, desc, udim, &fallbackColor))
             {
                 // Bind any associated uniforms.
                 if (pair.first == "u_envRadiance")
@@ -450,6 +498,72 @@ void Material::bindLights(mx::GLTextureHandlerPtr imageHandler, const mx::FileSe
                 }
             }
         }
+    }
+
+    // Check for usage of direct lighting
+    if (_glShader->uniform("u_numActiveLightSources", false) == -1)
+    {
+        return;
+    }
+
+    // Set the number of active light sources
+    unsigned int lightCount = directLighting ? static_cast<unsigned int>(lightHandler->getLightSources().size()) : 0;
+    _glShader->setUniform("u_numActiveLightSources", lightCount, true);
+    
+    if (lightCount == 0)
+    {
+        return;
+    }
+
+    // Bind any direct lighting
+    //
+    const std::vector<mx::NodePtr> lightList = lightHandler->getLightSources();
+    std::unordered_map<std::string, unsigned int> ids;
+    mx::mapNodeDefToIdentiers(lightHandler->getLightSources(), ids);
+
+    size_t index = 0;
+    for (mx::NodePtr light : lightHandler->getLightSources())
+    {
+        auto nodeDef = light->getNodeDef();
+        const std::string prefix = "u_lightData[" + std::to_string(index) + "]";
+
+        // Set light type id
+        std::string lightType(prefix + ".type");
+        if (_glShader->uniform(lightType, false) != -1)
+        {
+            unsigned int lightTypeValue = ids[nodeDef->getName()];
+            _glShader->setUniform(lightType, lightTypeValue);
+        }
+
+        // Set all inputs
+        for (auto input : light->getInputs())
+        {
+            // Make sure we have a value to set
+            if (input->hasValue())
+            {
+                std::string inputName(prefix + "." + input->getName());
+                if (_glShader->uniform(inputName, false) != -1)
+                {
+                    bindUniform(inputName, *input->getValue());
+                }
+            }
+        }
+
+        // Set all parameters. Note that upstream node connections are not currently supported.
+        for (mx::ParameterPtr param : light->getParameters())
+        {
+            // Make sure we have a value to set
+            if (param->hasValue())
+            {
+                std::string paramName(prefix + "." + param->getName());
+                if (_glShader->uniform(paramName, false) != -1)
+                {
+                    bindUniform(paramName, *param->getValue());
+                }
+            }
+        }
+
+        ++index;
     }
 }
 

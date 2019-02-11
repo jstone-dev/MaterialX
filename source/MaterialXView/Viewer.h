@@ -4,6 +4,8 @@
 #include <MaterialXView/Editor.h>
 #include <MaterialXView/Material.h>
 #include <MaterialXRender/Handlers/GeometryHandler.h>
+#include <MaterialXRender/Handlers/HwLightHandler.h>
+#include <MaterialXGenGlsl/GlslShaderGenerator.h>
 
 namespace mx = MaterialX;
 namespace ng = nanogui;
@@ -56,6 +58,8 @@ class Viewer : public ng::Screen
     }
 
   private:
+    void setupLights(mx::HwLightHandlerPtr lightHandler, mx::ShaderGeneratorPtr shaderGenerator,
+          std::vector<mx::NodePtr> lights, const std::string& envRadiancePath, const std::string& envIrradiancePath);
     void initializeDocument(mx::DocumentPtr libraries);
     void saveActiveMaterialSource();
 
@@ -106,6 +110,13 @@ class Viewer : public ng::Screen
     mx::FilePath _materialFilename;
     DocumentModifiers _modifiers;
 
+    // Lighting information
+    std::string _lightFileName;
+    std::string _envRadiancePath;
+    std::string _envIrradiancePath;
+    bool _directLighting;
+    bool _indirectLighting;
+
     // Geometry selections
     std::vector<mx::MeshPartitionPtr> _geometryList;
     size_t _selectedGeom;
@@ -126,6 +137,10 @@ class Viewer : public ng::Screen
     // Resource handlers
     mx::GeometryHandler _geometryHandler;
     mx::GLTextureHandlerPtr _imageHandler;
+    mx::HwLightHandlerPtr _lightHandler;
+
+    // Shader generator
+    mx::ShaderGeneratorPtr _shaderGenerator;
 
     // Mesh options
     bool _splitByUdims;
