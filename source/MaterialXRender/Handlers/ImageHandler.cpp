@@ -23,6 +23,7 @@ std::string ImageLoader::TGA_EXTENSION = "tga";
 std::string ImageLoader::TIF_EXTENSION = "tif";
 std::string ImageLoader::TIFF_EXTENSION = "tiff";
 std::string ImageLoader::TXT_EXTENSION = "txt";
+std::string ImageLoader::TXR_EXTENSION = "txr";
 
 ImageHandler::ImageHandler(ImageLoaderPtr imageLoader)
 {
