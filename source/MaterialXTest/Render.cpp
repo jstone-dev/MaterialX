@@ -3,8 +3,7 @@
 // All rights reserved.  See LICENSE.txt for license.
 //
 
-// Compile if module flags were set
-#if defined(MATERIALX_TEST_RENDER) && defined(MATERIALX_BUILD_RENDEROSL) && defined(MATERIALX_BUILD_RENDERGLSL)
+#if defined(MATERIALX_BUILD_RENDER) 
 
 // Run only on supported platforms
 #include <MaterialXRender/HardwarePlatform.h>
@@ -39,6 +38,9 @@
 
 #ifdef MATERIALX_BUILD_CONTRIB
 #include <MaterialXContrib/Handlers/TinyEXRImageLoader.h>
+#endif
+#ifdef MATERIALX_BUILD_OIIO
+#include <MaterialXRender/Handlers/OiioImageLoader.h>
 #endif
 #include <MaterialXRender/Handlers/StbImageLoader.h>
 
@@ -94,7 +96,7 @@ static mx::GlslValidatorPtr createGLSLValidator(const std::string& fileName, std
         std::string geometryFile;
         if (fileName.length())
         {
-            geometryFile =  mx::FilePath::getCurrentPath() / mx::FilePath("resources/Geometry/") / mx::FilePath(fileName);
+            geometryFile = mx::FilePath::getCurrentPath() / mx::FilePath("resources/Geometry/") / mx::FilePath(fileName);
             if (!geometryHandler.hasGeometry(geometryFile))
             {
                 geometryHandler.clearGeometry();
@@ -109,6 +111,10 @@ static mx::GlslValidatorPtr createGLSLValidator(const std::string& fileName, std
         {
             log << e.what() << " " << error << std::endl;
         }
+    }
+    catch (mx::Exception& e)
+    {
+        log << e.what() << std::endl;
     }
     REQUIRE(initialized);
 
@@ -153,7 +159,7 @@ static mx::OslValidatorPtr createOSLValidator(std::ostream& log)
             validator->setOslUtilityOSOPath(shaderPath);
         }
     }
-    catch(mx::ExceptionShaderValidationError& e)
+    catch (mx::ExceptionShaderValidationError& e)
     {
         for (auto error : e.errorLog())
         {
@@ -171,7 +177,7 @@ static mx::OslValidatorPtr createOSLValidator(std::ostream& log)
 //
 class ShaderValidTestOptions
 {
-public:
+  public:
     void print(std::ostream& output) const
     {
         output << "Shader Validation Test Options:" << std::endl;
@@ -247,10 +253,10 @@ public:
     bool dumpGlslUniformsAndAttributes = true;
 
     // Non-shader GLSL geometry file
-    MaterialX::FilePath glslNonShaderGeometry = "sphere.obj";
+    MaterialX::FilePath glslNonShaderGeometry;
 
     // Shader GLSL geometry file
-    MaterialX::FilePath glslShaderGeometry = "shaderball.obj";
+    MaterialX::FilePath glslShaderGeometry;
 
     // Radiance IBL file
     MaterialX::FilePath radianceIBLPath;
@@ -442,6 +448,7 @@ static void runOGSFXValidation(const std::string& shaderName, mx::TypedElementPt
                 AdditiveScopedTimer generationTimer(profileTimes.ogsfxTimes.generationTime, "OGSFX generation time");
                 mx::GenOptions& contextOptions = context.getOptions();
                 contextOptions = options;
+                contextOptions.fileTextureVerticalFlip = true;
                 shader = shadergen.generate(shaderName, element, context);
                 generationTimer.endTimer();
 
@@ -454,7 +461,7 @@ static void runOGSFXValidation(const std::string& shaderName, mx::TypedElementPt
                     file.close();
                 }
             }
-            catch (mx::ExceptionShaderGenError& e)
+            catch (mx::Exception& e)
             {
                 log << ">> " << e.what() << "\n";
 
@@ -519,7 +526,7 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
     std::vector<mx::GenOptions> optionsList;
     getGenerationOptions(testOptions, context.getOptions(), optionsList);
 
-    if(element && doc)
+    if (element && doc)
     {
         log << "------------ Run GLSL validation with element: " << element->getNamePath() << "-------------------" << std::endl;
 
@@ -551,10 +558,11 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
                 AdditiveScopedTimer generationTimer(profileTimes.glslTimes.generationTime, "GLSL generation time");
                 mx::GenOptions& contextOptions = context.getOptions();
                 contextOptions = options;
+                contextOptions.fileTextureVerticalFlip = true;
                 shader = shadergen.generate(shaderName, element, context);
                 generationTimer.endTimer();
             }
-            catch (mx::ExceptionShaderGenError& e)
+            catch (mx::Exception& e)
             {
                 log << ">> " << e.what() << "\n";
                 shader = nullptr;
@@ -653,15 +661,6 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
                     validator.validateInputs();
                 }
 
-                if (options.shaderInterfaceType == mx::SHADER_INTERFACE_REDUCED)
-                {
-                    log << "-- SHADER_INTERFACE_REDUCED output:" << std::endl;
-                }
-                else
-                {
-                    log << "-- SHADER_INTERFACE_COMPLETE output:" << std::endl;
-                }
-
                 if (testOptions.dumpGlslUniformsAndAttributes)
                 {
                     AdditiveScopedTimer printTimer(profileTimes.glslTimes.ioTime, "GLSL io time");
@@ -692,7 +691,7 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
                             if (!uiProperties.enumeration.empty())
                             {
                                 log << ". Enumeration: {";
-                                for (size_t i=0; i<uiProperties.enumeration.size(); i++)
+                                for (size_t i = 0; i<uiProperties.enumeration.size(); i++)
                                     log << uiProperties.enumeration[i] << " ";
                                 log << "}";
                             }
@@ -747,6 +746,10 @@ static void runGLSLValidation(const std::string& shaderName, mx::TypedElementPtr
                 }
                 log << ">> Refer to shader code in dump files: " << shaderPath << "_ps.glsl and _vs.glsl files" << std::endl;
             }
+            catch (mx::Exception& e)
+            {
+                log << e.what() << std::endl;
+            }
             CHECK(validated);
         }
     }
@@ -777,7 +780,7 @@ static void runOSLValidation(const std::string& shaderName, mx::TypedElementPtr 
     std::vector<mx::GenOptions> optionsList;
     getGenerationOptions(testOptions, context.getOptions(), optionsList);
 
-    if(element && doc)
+    if (element && doc)
     {
         log << "------------ Run OSL validation with element: " << element->getNamePath() << "-------------------" << std::endl;
 
@@ -793,7 +796,7 @@ static void runOSLValidation(const std::string& shaderName, mx::TypedElementPtr 
                 contextOptions = options;
                 shader = shadergen.generate(shaderName, element, context);
             }
-            catch (mx::ExceptionShaderGenError& e)
+            catch (mx::Exception& e)
             {
                 log << ">> " << e.what() << "\n";
                 shader = nullptr;
@@ -863,7 +866,7 @@ static void runOSLValidation(const std::string& shaderName, mx::TypedElementPtr 
                     mx::StringMap separatorMapper;
                     separatorMapper["\\\\"] = "/";
                     separatorMapper["\\"] = "/";
-                    for (size_t i=0; i<uniforms.size(); ++i)
+                    for (size_t i = 0; i<uniforms.size(); ++i)
                     {
                         const mx::ShaderPort* uniform = uniforms[i];
                         if (uniform->getType() != MaterialX::Type::FILENAME)
@@ -939,6 +942,10 @@ static void runOSLValidation(const std::string& shaderName, mx::TypedElementPtr 
                 }
                 log << ">> Refer to shader code in dump file: " << shaderPath << ".osl file" << std::endl;
             }
+            catch (mx::Exception& e)
+            {
+                std::cout << e.what();
+            }
             CHECK(validated);
         }
     }
@@ -966,9 +973,13 @@ bool getTestOptions(const std::string& optionFile, ShaderValidTestOptions& optio
     const std::string GLSL_SHADER_GEOMETRY_STRING("glslShaderGeometry");
     const std::string RADIANCE_IBL_PATH_STRING("radianceIBLPath");
     const std::string IRRADIANCE_IBL_PATH_STRING("irradianceIBLPath");
+    const std::string SPHERE_OBJ("sphere.obj");
+    const std::string SHADERBALL_OBJ("shaderball.obj");
 
     options.overrideFiles.clear();
     options.dumpGeneratedCode = false;
+    options.glslNonShaderGeometry = SPHERE_OBJ;
+    options.glslShaderGeometry = SHADERBALL_OBJ;
 
     MaterialX::DocumentPtr doc = MaterialX::createDocument();
     try {
@@ -989,7 +1000,7 @@ bool getTestOptions(const std::string& optionFile, ShaderValidTestOptions& optio
                     }
                     if (name == LIGHT_FILES_STRING)
                     {
-                        options.lightFiles  = MaterialX::splitString(p->getValueString(), ",");
+                        options.lightFiles = MaterialX::splitString(p->getValueString(), ",");
                     }
                     else if (name == SHADER_INTERFACES_STRING)
                     {
@@ -1135,7 +1146,7 @@ void printRunLog(const ShaderValidProfileTimes &profileTimes, const ShaderValidT
         mx::StringVec whiteList =
         {
             "ambientocclusion", "arrayappend", "backfacing", "screen", "curveadjust", "displacementshader",
-            "volumeshader", "IM_constant_string_", "IM_constant_filename_", "IM_dot_string"
+            "volumeshader", "IM_constant_", "IM_dot_", "IM_geomattrvalue"
         };
         unsigned int implementationUseCount = 0;
         for (auto libraryImpl : libraryImpls)
@@ -1188,11 +1199,118 @@ void printRunLog(const ShaderValidProfileTimes &profileTimes, const ShaderValidT
     }
 }
 
-TEST_CASE("Render TestSuite", "[render]")
+struct ImageHandlerTestOptions
 {
-#if !defined(MATERIALX_BUILD_RENDERGLSL) && !defined(MATERIALX_BUILD_RENDEROSL)
-    return;
+    mx::ImageHandlerPtr imageHandler;
+    std::ofstream* logFile;
+
+    mx::StringVec testExtensions;
+    mx::StringVec skipExtensions;
+};
+
+void testImageHandler(ImageHandlerTestOptions& options)
+{
+    mx::FilePath imagePath = mx::FilePath::getCurrentPath() / mx::FilePath("resources/Images/");
+    mx::StringVec files;
+
+    unsigned int loadFailed = 0;
+    for (auto extension : options.testExtensions)
+    {
+        if (options.skipExtensions.end() != std::find(options.skipExtensions.begin(), options.skipExtensions.end(), extension))
+        {
+            continue;
+        }
+        mx::getFilesInDirectory(imagePath, files, extension);
+        for (const std::string& file : files)
+        {
+            const mx::FilePath filePath = imagePath / mx::FilePath(file);
+            const std::string fileName = filePath;
+            mx::ImageDesc desc;
+            bool loaded = options.imageHandler->acquireImage(filePath, desc, false, nullptr);
+            if (options.logFile)
+            {
+                *(options.logFile) << "Loaded image: " << fileName << ". Loaded: " << loaded << std::endl;
+            }
+            if (!loaded)
+            {
+                loadFailed++;
+            }
+        }
+        files.clear();
+    }
+    CHECK(loadFailed == 0);
+}
+
+TEST_CASE("Render: Image Handler Load", "[rendercore]")
+{
+    std::ofstream imageHandlerLog;
+    imageHandlerLog.open("render_image_handler_test.txt");
+    bool imagesLoaded = false;
+    try
+    {
+        ImageHandlerTestOptions options;
+        options.logFile = &imageHandlerLog;
+
+        imageHandlerLog << "** Test STB image loader **" << std::endl;
+        mx::StbImageLoaderPtr stbLoader = mx::StbImageLoader::create();
+        mx::ImageHandlerPtr imageHandler = mx::ImageHandler::create(nullptr);
+        imageHandler->addLoader(stbLoader);
+        options.testExtensions = stbLoader->supportedExtensions();
+        options.imageHandler = imageHandler;
+        testImageHandler(options);
+
+#ifdef MATERIALX_BUILD_CONTRIB
+        imageHandlerLog << "** Test TinyEXR image loader **" << std::endl;
+        mx::TinyEXRImageLoaderPtr exrLoader = mx::TinyEXRImageLoader::create();
+        mx::ImageHandlerPtr imageHandler2 = mx::ImageHandler::create(nullptr);
+        imageHandler2->addLoader(exrLoader);
+        options.testExtensions = exrLoader->supportedExtensions();
+        options.imageHandler = imageHandler2;
+        testImageHandler(options);
 #endif
+
+#if defined(MATERIALX_BUILD_OIIO) && defined(OPENIMAGEIO_ROOT_DIR)
+        imageHandlerLog << "** Test OpenImageIO image loader **" << std::endl;
+        mx::OiioImageLoaderPtr oiioLoader = mx::OiioImageLoader::create();
+        mx::ImageHandlerPtr imageHandler3 = mx::ImageHandler::create(nullptr);
+        imageHandler3->addLoader(oiioLoader);
+        options.testExtensions = oiioLoader->supportedExtensions();
+        options.imageHandler = imageHandler3;
+        // Getting libpng warning: iCCP: known incorrect sRGB profile for some reason. TBD.
+        options.skipExtensions.push_back("gif");
+        testImageHandler(options);
+#endif
+        imagesLoaded = true;
+    }
+    catch (mx::ExceptionShaderValidationError& e)
+    {
+        for (auto error : e.errorLog())
+        {
+            imageHandlerLog << e.what() << " " << error << std::endl;
+        }
+    }
+    catch (mx::Exception& e)
+    {
+        std::cout << e.what();
+    }
+    CHECK(imagesLoaded);
+    imageHandlerLog.close();
+}
+
+TEST_CASE("Render: TestSuite", "[render]")
+{
+    bool skipTest = false;
+#if !defined(MATERIALX_TEST_RENDER) 
+    skipTest = true;
+#endif
+#if !defined(MATERIALX_BUILD_RENDERGLSL) && !defined(MATERIALX_BUILD_RENDEROSL)
+    skipTest = true;
+#endif
+
+    if (skipTest)
+    {
+        return;
+    }
 
     // Profiling times
     ShaderValidProfileTimes profileTimes;
@@ -1227,6 +1345,7 @@ TEST_CASE("Render TestSuite", "[render]")
 #ifdef MATERIALX_BUILD_RENDEROSL
     std::ostream& oslLog(std::cout);
 #endif
+    std::string docValidLogFilename = "std::out";
     std::ostream& docValidLog(std::cout);
     std::ostream& profilingLog(std::cout);
 #endif
@@ -1453,7 +1572,7 @@ TEST_CASE("Render TestSuite", "[render]")
             {
                 mx::findRenderableElements(doc, elements);
             }
-            catch (mx::ExceptionShaderGenError& e)
+            catch (mx::Exception& e)
             {
                 docValidLog << e.what() << std::endl;
                 WARN("Find renderable elements failed, see: " + docValidLogFilename + " for details.");

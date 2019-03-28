@@ -76,7 +76,7 @@ class GenContext
     {
         return *_sg;
     }
-    
+
     /// Return shader generation options.
     GenOptions& getOptions()
     {

@@ -12,8 +12,23 @@ set(NANOGUI_BUILD_SHARED OFF CACHE BOOL " " FORCE)
 set(NANOGUI_BUILD_PYTHON OFF CACHE BOOL " " FORCE)
 set(NANOGUI_INSTALL OFF CACHE BOOL " " FORCE)
 
+# Turn off some additional warnings in NanoGUI dependents
+set(PREV_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+set(PREV_CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+if(MSVC)
+    add_compile_options(/wd4389 -DEIGEN_DONT_VECTORIZE)
+elseif(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    add_compile_options(-Wno-misleading-indentation)
+    add_compile_options(-Wno-format-truncation)
+    add_compile_options(-Wno-implicit-fallthrough)
+    add_compile_options(-Wno-maybe-uninitialized) # GCC-8 only
+endif()
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/NanoGUI external/NanoGUI)
 set_property(TARGET nanogui nanogui-obj glfw glfw_objects PROPERTY FOLDER "External")
+
+set(CMAKE_C_FLAGS ${PREV_CMAKE_C_FLAGS})
+set(CMAKE_CXX_FLAGS ${PREV_CMAKE_CXX_FLAGS})
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../
@@ -23,7 +38,7 @@ include_directories(
 add_definitions(${NANOGUI_EXTRA_DEFS})
 
 if(MSVC)
-    add_compile_options(/D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS)
+    add_compile_options(/D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS )
 endif()
 
 add_executable(MaterialXView ${materialx_source} ${materialx_headers})
