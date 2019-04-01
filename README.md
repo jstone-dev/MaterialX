@@ -34,5 +34,5 @@ The MaterialX repository consists of the following folders:
 
 - The main [MaterialX repository](https://github.com/materialx/MaterialX)
 - The latest [ShaderX specification](https://github.com/jstone-dev/MaterialX/blob/adsk_contrib/dev/documents/Specification/ShaderX.Draft.pdf)
-- The MaterialX graph for the [Standard Surface shader](https://github.com/jstone-dev/MaterialX/blob/adsk_contrib/dev/documents/Libraries/pbrlib/pbrlib_ng.mtlx#L38)
-- An example MaterialX graph for [procedural marble](https://github.com/jstone-dev/MaterialX/blob/adsk_contrib/dev/documents/TestSuite/pbrlib/materials/standard_surface_marble_solid.mtlx)
+- The MaterialX graph for the [Standard Surface shader](https://github.com/materialx/MaterialX/blob/master/libraries/bxdf/standard_surface.mtlx)
+- An example MaterialX graph for [procedural marble](https://github.com/jstone-dev/MaterialX/blob/adsk_contrib/dev/resources/Materials/TestSuite/pbrlib/materials/standard_surface_marble_solid.mtlx)
