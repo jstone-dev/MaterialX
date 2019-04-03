@@ -3,8 +3,11 @@
 #include <MaterialXGenShader/HwShaderGenerator.h>
 #include <MaterialXGenShader/Shader.h>
 #include <MaterialXGenShader/Util.h>
+#include <MaterialXRender/Util.h>
 
 #include <MaterialXFormat/File.h>
+
+#include <nanogui/messagedialog.h>
 
 #include <iostream>
 
@@ -46,7 +49,7 @@ size_t Material::loadDocument(mx::DocumentPtr destinationDoc, const mx::FilePath
         }
         else
         {
-            std::cerr << "Include file not found: " << filename << std::endl;
+            new ng::MessageDialog(nullptr, ng::MessageDialog::Type::Warning, "Include file not found:", filename);
         }
     };
     mx::readFromXmlFile(doc, filePath, mx::EMPTY_STRING, &readOptions);
@@ -169,19 +172,11 @@ bool Material::generateConstantShader(mx::GenContext& context,
                                       const std::string& shaderName,
                                       const mx::Color3& color)
 {
-    // Construct the nodegraph.
-    mx::DocumentPtr doc = mx::createDocument();
-    doc->importLibrary(stdLib);
-    mx::NodeGraphPtr nodeGraph = doc->addNodeGraph();
-    mx::NodePtr constant = nodeGraph->addNode("constant");
-    constant->setParameterValue("value", color);
-    mx::OutputPtr output = nodeGraph->addOutput();
-    output->setConnectedNode(constant);
-    _elem = output;
-    _hasTransparency = false;
-
-    // Generate the GLSL shader.
-    _hwShader = generateSource(context, _elem);
+    _hwShader = createConstantShader(context, stdLib, shaderName, color);
+    if (!_hwShader)
+    {
+        return false;
+    }
     std::string vertexShader = _hwShader->getSourceCode(mx::Stage::VERTEX);
     std::string pixelShader = _hwShader->getSourceCode(mx::Stage::PIXEL);
 
@@ -190,15 +185,28 @@ bool Material::generateConstantShader(mx::GenContext& context,
     return _glShader->init(shaderName, vertexShader, pixelShader);
 }
 
-mx::ShaderPtr Material::generateSource(mx::GenContext& context, mx::ElementPtr elem)
+bool Material::loadSource(const mx::FilePath& vertexShaderFile, const mx::FilePath& pixelShaderFile, const std::string& shaderName, bool hasTransparency)
 {
-    if (!elem)
+    _hasTransparency = hasTransparency;
+
+    if (!_glShader)
     {
-        return nullptr;
+        _glShader = std::make_shared<ng::GLShader>();
     }
 
-    context.getOptions().hwTransparency = isTransparentSurface(elem, context.getShaderGenerator());
-    return context.getShaderGenerator().generate("Shader", elem, context);
+    std::string vertexShader;
+    if (!mx::readFile(vertexShaderFile, vertexShader))
+    {
+        return false;
+    }
+
+    std::string pixelShader;
+    if (!mx::readFile(pixelShaderFile, pixelShader))
+    {
+        return false;
+    }
+
+    return _glShader->init(shaderName, vertexShader, pixelShader);
 }
 
 bool Material::generateShader(mx::GenContext& context)
@@ -209,7 +217,7 @@ bool Material::generateShader(mx::GenContext& context)
     }
     if (!_hwShader)
     {
-        _hwShader = generateSource(context, _elem);
+        _hwShader = createShader("Shader", context, _elem);
     }
     if (!_hwShader)
     {
@@ -544,31 +552,36 @@ void Material::drawPartition(mx::MeshPartitionPtr part) const
     _glShader->drawIndexed(GL_TRIANGLES, 0, (uint32_t) part->getFaceCount());
 }
 
-const mx::VariableBlock* Material::getPublicUniforms() const
+mx::VariableBlock* Material::getPublicUniforms() const
 {
     if (!_hwShader)
     {
         return nullptr;
     }
-
-    return &_hwShader->getStage(mx::Stage::PIXEL).getUniformBlock(mx::HW::PUBLIC_UNIFORMS);
+    try
+    {
+        mx::ShaderStage& stage = _hwShader->getStage(mx::Stage::PIXEL);
+        mx::VariableBlock& block = stage.getUniformBlock(mx::HW::PUBLIC_UNIFORMS);
+        return &block;
+    }
+    catch (mx::Exception& e)
+    {
+        new ng::MessageDialog(nullptr, ng::MessageDialog::Type::Warning, "Unable to find shader uniforms", e.what());
+    }
+    return nullptr;
 }
 
 mx::ShaderPort* Material::findUniform(const std::string& path) const
 {
-    const mx::VariableBlock* publicUniforms = getPublicUniforms();
-    if (!publicUniforms)
-    {
-        return nullptr;
+    mx::VariableBlock* publicUniforms = getPublicUniforms();
+    if (publicUniforms)
+    { 
+        // Scan block based on path match predicate
+        return publicUniforms->find(
+            [path](mx::ShaderPort* port)
+            {
+                return (port && (port->getPath() == path));
+            });
     }
-
-    for (auto uniform : publicUniforms->getVariableOrder())
-    {
-        if (uniform->getPath() == path)
-        {
-            return uniform;
-        }
-    }
-
     return nullptr;
 }

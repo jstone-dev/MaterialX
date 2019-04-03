@@ -61,6 +61,7 @@ class Viewer : public ng::Screen
     void setupLights(mx::DocumentPtr doc, const std::string& envRadiancePath, const std::string& envIrradiancePath);
     void initializeDocument(mx::DocumentPtr libraries);
     void saveActiveMaterialSource();
+    void loadActiveMaterialSource();
 
     /// Assign the given material to a geometry, or to all geometries if no
     /// target is specified.
@@ -151,6 +152,10 @@ class Viewer : public ng::Screen
     // Render options
     bool _outlineSelection;
     int _envSamples;
+
+    // Image save
+    bool _captureFrame;
+    mx::FilePath _captureFrameFileName;
 };
 
 #endif // MATERIALXVIEW_VIEWER_H
