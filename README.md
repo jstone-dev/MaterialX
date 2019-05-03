@@ -6,6 +6,8 @@
 
 This repository contains the **Prototype MaterialX Viewer** (MaterialXView), which leverages ShaderX to generate GLSL shaders from MaterialX graphs, rendering the results using the NanoGUI framework.  Both the standard set of MaterialX nodes and the PBR node set in ShaderX are supported.
 
+**Note that this prototype has been merged back to MaterialX master, and the latest version of the MaterialX viewer may be found at https://github.com/materialx/MaterialX.**
+
 ### Example Images
 
 **Standard Surface Shader with procedural and uniform materials**
